@@ -49,7 +49,8 @@ function getAttribute(name, defaultValue) {
         return my_script.attributes[name].value;
     }
     else if (typeof defaultValue == 'undefined') {
-        throw new Error('Need to specify an "' + name + '" attribute to angularjs-script.');
+        throw new Error('Need to specify an "' + name
+                      + '" attribute to angularjs-script.');
     }
 }
 
@@ -63,6 +64,23 @@ angular.extend(angular, {
         loaded_modules[path] = true;
         insertScript(path);
         if (checkerFn) {
+            // We can specify either a function to be called, a string
+            // representing the name of an object or an array of strings.
+            if (typeof checkerFn !== 'function') {
+                var variable = checkerFn;
+                if (!(variable instanceof Array)) {
+                    variable = [variable];
+                }
+                checkerFn = function() {
+                    for (var i = 0; i < variable.length; i++) {
+                        if (typeof window[variable] == 'undefined') {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            }
+
             nb_calls++;
             var start = +new Date();
             var interval = window.setInterval(function() {
