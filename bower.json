@@ -1,0 +1,24 @@
+{
+  "name": "angularjs-script",
+  "main": "angularjs-script.js",
+  "version": "0.1",
+  "homepage": "https://github.com/hansl/angularjs-script",
+  "authors": [
+    "Hans Larsen <hans@hansl.ca>"
+  ],
+  "description": "A script to automatically load scripts based on the module dependencies, using angular.module() calls.",
+  "keywords": [
+    "angularjs",
+    "amd",
+    "script",
+    "loaders"
+  ],
+  "license": "Apache v2",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
