@@ -2,9 +2,7 @@
 
 (function() {
 
-angular.requires('//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js', function() {
-    return typeof window.$ !== 'undefined';
-});
+angular.requires('//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js', '$');
 
 var mod = angular.module('subdir.my_mod', []);
 
