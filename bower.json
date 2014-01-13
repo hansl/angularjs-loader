@@ -1,7 +1,7 @@
 {
   "name": "angularjs-script",
   "main": "angularjs-script.js",
-  "version": "0.1",
+  "version": "0.1.0",
   "homepage": "https://github.com/hansl/angularjs-script",
   "authors": [
     "Hans Larsen <hans@hansl.ca>"
