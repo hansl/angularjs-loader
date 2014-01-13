@@ -5,16 +5,16 @@
 (function() {
 
 // Get our script tag.
-var all_scripts = document.getElementsByTagName('script');
-var my_script = all_scripts[all_scripts.length - 1];
+var allScriptTags = document.getElementsByTagName('script');
+var angularJsLoaderScriptTag = allScriptTags[allScriptTags.length - 1];
 
-var arg_main_module = getAttribute('app');
-var arg_path_root = getAttribute('root', '');
-var arg_timeout = getAttribute('timeout', 30000);
+var mainModulePathArg = getAttribute('app');
+var rootPathArg = getAttribute('root', '');
+var timeoutArg = getAttribute('timeout', 30000);
 
-var original_module = angular.module;
-var nb_calls = 0;
-var loaded_modules = {};
+var angularModuleOriginalFn = angular.module;
+var bootstrapLockCount = 0;
+var loadedModuleMap = {};
 
 function pathFromModuleName(name) {
     if (name.search(/^(https?:)?\/\/.+/) == 0) {
@@ -22,31 +22,36 @@ function pathFromModuleName(name) {
     }
     var path = name.replace('.', '/') + '.js';
 
-    if (arg_path_root) {
-        path = arg_path_root + '/' + path;
+    if (rootPathArg) {
+        path = rootPathArg + '/' + path;
     }
 
     return path;
 }
 
 function insertScript(path) {
-    var script_tag = document.createElement('script');
-    script_tag.type = "text/javascript";
-    script_tag.src = path;
-    document.head.appendChild(script_tag);
+    var newScriptTag = document.createElement('script');
+    newScriptTag.type = "text/javascript";
+    newScriptTag.src = path;
+    document.head.appendChild(newScriptTag);
 }
 
 function maybeBootstrap() {
-    if (--nb_calls == 0) {
+    // Wait until the current Javascript code is entirely loaded before
+    // checking the bootstrap lock.
+    if (--bootstrapLockCount == 0) {
         window.setTimeout(function() {
-            angular.bootstrap(document, [arg_main_module]);
+            // We check again in case the file introduced new dependencies.
+            if (bootstrapLockCount == 0) {
+                angular.bootstrap(document, [mainModulePathArg]);
+            }
         }, 0);
     }
 }
 
 function getAttribute(name, defaultValue) {
-    if (my_script.attributes[name]) {
-        return my_script.attributes[name].value;
+    if (angularJsLoaderScriptTag.attributes[name]) {
+        return angularJsLoaderScriptTag.attributes[name].value;
     }
     else if (typeof defaultValue == 'undefined') {
         throw new Error('Need to specify an "' + name
@@ -57,11 +62,11 @@ function getAttribute(name, defaultValue) {
 angular.extend(angular, {
     requires: function(path, checkerFn) {
         path = pathFromModuleName(path);
-        if (loaded_modules[path]) {
+        if (loadedModuleMap[path]) {
             return angular;
         }
 
-        loaded_modules[path] = true;
+        loadedModuleMap[path] = true;
         insertScript(path);
         if (checkerFn) {
             // We can specify either a function to be called, a string
@@ -81,14 +86,15 @@ angular.extend(angular, {
                 }
             }
 
-            nb_calls++;
+            bootstrapLockCount++;
             var start = +new Date();
             var interval = window.setInterval(function() {
                 if (checkerFn()) {
                     maybeBootstrap();
+                    // For every interval created we will clear it by design.
                     window.clearInterval(interval);
                 }
-                else if (new Date() - start >= arg_timeout) {
+                else if (new Date() - start >= timeoutArg) {
                     throw new Error('Timed out loading "' + path + '".');
                 }
             });
@@ -101,27 +107,27 @@ angular.extend(angular, {
         if (requires instanceof Array) {
             for (var i = 0; i < requires.length; i++) {
                 var path = pathFromModuleName(requires[i]);
-                if (loaded_modules[path]) {
+                if (loadedModuleMap[path]) {
                     continue;
                 }
 
-                loaded_modules[path] = true;
+                loadedModuleMap[path] = true;
                 insertScript(path);
 
                 // We do it here because the call above might throw.
-                nb_calls++;
+                bootstrapLockCount++;
             }
         }
 
-        var return_value = original_module.apply(angular, arguments);
+        var ret = angularModuleOriginalFn.apply(angular, arguments);
         maybeBootstrap();  // If we're done, bootstrap angular.
-        return return_value;
+        return ret;
     }
 });
 
 
 // Load the first module.
-nb_calls++;
-insertScript(pathFromModuleName(arg_main_module));
+bootstrapLockCount++;
+insertScript(pathFromModuleName(mainModulePathArg));
 
 })();
