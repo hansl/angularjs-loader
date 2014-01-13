@@ -95,10 +95,8 @@ angular.extend(angular, {
         }
         return angular;
     },
-    module: function(var_args) {
-        var name = arguments[0];
+    module: function() {
         var requires = arguments[1];
-        var configFn = arguments[2];
 
         if (requires instanceof Array) {
             for (var i = 0; i < requires.length; i++) {
