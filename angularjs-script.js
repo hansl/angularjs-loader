@@ -122,7 +122,12 @@ function loaderFn(path, successFn) {
             if (!p || p in loadedModuleMap) {
                 return recursiveLoader();
             }
-            insertScript(p, recursiveLoader);
+            loadedModuleMap[p] = false;
+            bootstrapLockCount++;
+            insertScript(p, function() {
+                maybeBootstrap(p);
+                recursiveLoader();
+            });
         }
         else {
             successFn();
