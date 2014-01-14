@@ -125,8 +125,8 @@ function loaderFn(path, successFn) {
             loadedModuleMap[p] = false;
             bootstrapLockCount++;
             insertScript(p, function() {
-                maybeBootstrap(p);
                 recursiveLoader();
+                maybeBootstrap(p);
             });
         }
         else {
