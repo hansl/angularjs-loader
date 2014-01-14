@@ -62,10 +62,20 @@ function pathFromModuleName(name) {
     return path;
 }
 
-function insertScript(path) {
+function insertScript(path, successFn, errorFn) {
     var newScriptTag = document.createElement('script');
     newScriptTag.type = "text/javascript";
     newScriptTag.src = path;
+    if (successFn) {
+        newScriptTag.addEventListener('load', function(ev) {
+            successFn(ev);
+        });
+    }
+    else if (errorFn) {
+        newScriptTag.addEventListener('error', function(ev) {
+            errorFn(ev);
+        });
+    }
     document.head.appendChild(newScriptTag);
 }
 
@@ -100,7 +110,26 @@ function getAttribute(name, defaultValue) {
     }
 }
 
-function loaderFn(path, successFn) {}
+function loaderFn(path, successFn) {
+    if (typeof path == 'string') {
+        path = [path];
+    }
+    function recursiveLoader() {
+        if (path.length) {
+            var p = path.shift();
+
+            p = pathFromModuleName(p);
+            if (!p || p in loadedModuleMap) {
+                return recursiveLoader();
+            }
+            insertScript(p, recursiveLoader);
+        }
+        else {
+            successFn();
+        }
+    }
+    recursiveLoader();
+}
 
 angular.extend(loaderFn, {
     config: function(cfg) {
@@ -128,7 +157,7 @@ angular.extend(angular, {
         if (checkerFn) {
             // We can specify either a function to be called, a string
             // representing the name of an object or an array of strings.
-            if (typeof checkerFn !== 'function') {
+            if (typeof checkerFn != 'function') {
                 var variable = checkerFn;
                 if (!(variable instanceof Array)) {
                     variable = [variable];
@@ -142,7 +171,7 @@ angular.extend(angular, {
                     return true;
                 }
             }
-            if (checkerFn()) {
+            if (typeof checkerFn == 'null' || checkerFn()) {
                 return angular;
             }
 
