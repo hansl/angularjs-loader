@@ -16,15 +16,48 @@ var angularModuleOriginalFn = angular.module;
 var bootstrapLockCount = 0;
 var loadedModuleMap = {};
 
-function pathFromModuleName(name) {
-    if (name.search(/^(https?:)?\/\/.+/) == 0) {
-        return name;
-    }
-    var path = name.replace('.', '/') + '.js';
+var config = {};
 
-    if (rootPathArg) {
-        path = rootPathArg + '/' + path;
+var defaultTransformPathList = [
+    function isAbsoluteUrl(path) {
+        return path.search(/^(https?:)?\/\/.+/) == 0 ? null : path;
+    },
+    function prependRootPath(path) {
+        return (rootPathArg ? rootPathArg + '/' : '') + path;
+    },
+    function appendJsExtension(path) {
+        return path.search(/\.js$/) == -1 ? path + '.js' : path;
     }
+];
+
+function getConfig(name, defaultValue) {
+    if (name in config) {
+        return config[name];
+    }
+    else {
+        return defaultValue;
+    }
+}
+
+function transformPath(path, transformList) {
+    var original = path;
+    for (var i = 0, fn; fn = transformList[i]; i++) {
+        var old = path;
+        path = fn(path, original);
+        if (path === null) {
+            return old;
+        }
+    }
+    return path;
+}
+
+function pathFromModuleName(name) {
+    var map = getConfig('path', {});
+    if (map[name] === null) return null;
+
+    var transformList = getConfig('pathTransform', [])
+                                .concat(defaultTransformPathList);
+    var path = transformPath(name in map ? map[name] : name, transformList);
 
     return path;
 }
@@ -36,7 +69,15 @@ function insertScript(path) {
     document.head.appendChild(newScriptTag);
 }
 
-function maybeBootstrap() {
+function maybeBootstrap(path) {
+    if (!(path in loadedModuleMap)) {
+        throw new Error('Path "' + path + '" was not loaded.');
+    }
+    else if (loadedModuleMap[path]) {
+        throw new Error('Path "' + path + '" was loaded twice.');
+    }
+
+    loadedModuleMap[path] = true;
     // Wait until the current Javascript code is entirely loaded before
     // checking the bootstrap lock.
     if (--bootstrapLockCount == 0) {
@@ -59,14 +100,30 @@ function getAttribute(name, defaultValue) {
     }
 }
 
+function loaderFn(path, successFn) {}
+
+angular.extend(loaderFn, {
+    config: function(cfg) {
+        angular.extend(config, cfg);
+        return loaderFn;
+    }
+});
+
 angular.extend(angular, {
+    loader: loaderFn,
     requires: function(path, checkerFn) {
+        if (typeof path == 'object') {
+            for (var name in path) {
+                angular.requires(name, path[name]);
+            }
+            return angular;
+        }
         path = pathFromModuleName(path);
-        if (loadedModuleMap[path]) {
+        if (!path || path in loadedModuleMap) {
             return angular;
         }
 
-        loadedModuleMap[path] = true;
+        loadedModuleMap[path] = false;
         insertScript(path);
         if (checkerFn) {
             // We can specify either a function to be called, a string
@@ -85,12 +142,16 @@ angular.extend(angular, {
                     return true;
                 }
             }
+            if (checkerFn()) {
+                return angular;
+            }
 
             bootstrapLockCount++;
+
             var start = +new Date();
             var interval = window.setInterval(function() {
                 if (checkerFn()) {
-                    maybeBootstrap();
+                    maybeBootstrap(path);
                     // For every interval created we will clear it by design.
                     window.clearInterval(interval);
                 }
@@ -102,16 +163,24 @@ angular.extend(angular, {
         return angular;
     },
     module: function() {
+        var name = arguments[0];
         var requires = arguments[1];
+        var ret = angularModuleOriginalFn.apply(angular, arguments);
+
+        // If module() was called with only 1 argument, it was to get the module
+        // and not create a new one.
+        if (arguments.length == 1) {
+            return ret;
+        }
 
         if (requires instanceof Array) {
             for (var i = 0; i < requires.length; i++) {
                 var path = pathFromModuleName(requires[i]);
-                if (loadedModuleMap[path]) {
+                if (!path || path in loadedModuleMap) {
                     continue;
                 }
 
-                loadedModuleMap[path] = true;
+                loadedModuleMap[path] = false;
                 insertScript(path);
 
                 // We do it here because the call above might throw.
@@ -119,8 +188,10 @@ angular.extend(angular, {
             }
         }
 
-        var ret = angularModuleOriginalFn.apply(angular, arguments);
-        maybeBootstrap();  // If we're done, bootstrap angular.
+        var path = pathFromModuleName(name);
+        if (path) {
+            maybeBootstrap(path);  // If we're done, bootstrap angular.
+        }
         return ret;
     }
 });
@@ -128,6 +199,8 @@ angular.extend(angular, {
 
 // Load the first module.
 bootstrapLockCount++;
-insertScript(pathFromModuleName(mainModulePathArg));
+var mainModulePath = pathFromModuleName(mainModulePathArg);
+loadedModuleMap[mainModulePath] = false;
+insertScript(mainModulePath);
 
 })();
