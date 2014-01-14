@@ -16,6 +16,8 @@ var angularModuleOriginalFn = angular.module;
 var bootstrapLockCount = 0;
 var loadedModuleMap = {};
 
+var isBootstrapped = false;
+
 var config = {};
 
 var defaultTransformPathList = [
@@ -91,6 +93,11 @@ function maybeBootstrap(path) {
     // Wait until the current Javascript code is entirely loaded before
     // checking the bootstrap lock.
     if (--bootstrapLockCount == 0) {
+        if (isBootstrapped) {
+            throw new Error('App already bootstrapped.');
+        }
+        isBootstrapped = true;
+
         window.setTimeout(function() {
             // We check again in case the file introduced new dependencies.
             if (bootstrapLockCount == 0) {
@@ -157,8 +164,7 @@ angular.extend(angular, {
             return angular;
         }
 
-        loadedModuleMap[path] = false;
-        insertScript(path);
+
         if (checkerFn) {
             // We can specify either a function to be called, a string
             // representing the name of an object or an array of strings.
@@ -176,24 +182,26 @@ angular.extend(angular, {
                     return true;
                 }
             }
-            if (typeof checkerFn == 'null' || checkerFn()) {
-                return angular;
-            }
-
-            bootstrapLockCount++;
-
-            var start = +new Date();
-            var interval = window.setInterval(function() {
-                if (checkerFn()) {
-                    maybeBootstrap(path);
-                    // For every interval created we will clear it by design.
-                    window.clearInterval(interval);
-                }
-                else if (new Date() - start >= timeoutArg) {
-                    throw new Error('Timed out loading "' + path + '".');
-                }
-            });
         }
+
+        if (typeof checkerFn == 'null' || checkerFn()) {
+            return angular;
+        }
+        loadedModuleMap[path] = false;
+        insertScript(path);
+        bootstrapLockCount++;
+
+        var start = +new Date();
+        var interval = window.setInterval(function() {
+            if (checkerFn()) {
+                maybeBootstrap(path);
+                // For every interval created we will clear it by design.
+                window.clearInterval(interval);
+            }
+            else if (new Date() - start >= timeoutArg) {
+                throw new Error('Timed out loading "' + path + '".');
+            }
+        });
         return angular;
     },
     module: function() {
