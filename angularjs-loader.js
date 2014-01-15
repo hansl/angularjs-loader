@@ -21,10 +21,6 @@ var rootPathArg = getAttribute('root', '');
 var timeoutArg = getAttribute('timeout', 30000);
 
 var angularModuleOriginalFn = angular.module;
-var bootstrapLockCount = 0;
-var loadedModuleMap = {};
-
-var isBootstrapped = false;
 
 var config = {};
 
@@ -78,10 +74,10 @@ function deferred() {
             then: function(fn, errFn) {
                 if (!pending) {
                     if (value) {
-                        fn(value);
+                        fn && fn(value);
                     }
                     else {
-                        errFn(reason);
+                        errFn && errFn(reason);
                     }
                 }
                 else {
@@ -126,8 +122,55 @@ function pathFromModuleName(name) {
     return path;
 }
 
+
+var lockCount = 0;
+var isBootstrapped = false;
+var locks = {};
+
+function locked(name) {
+    return name in locks;
+}
+
+function lock(name) {
+    if (name in locks) {
+        throw new Error('Path "' + name + '" is being loaded twice.')
+        return false;
+    }
+    locks[name] = false;
+    lockCount++;
+}
+
+function unlock(name) {
+    if (!(name in locks)) {
+        throw new Error('Path "' + name + '" was not loaded.');        
+    }
+    if (locks[name]) {
+        throw new Error('Path "' + name + '" was loaded twice.');
+    }
+    locks[name] = true;
+
+    if (--lockCount == 0) {
+        if (isBootstrapped) {
+            throw new Error('App already bootstrapped.');
+        }
+
+        isBootstrapped = true;
+
+        window.setTimeout(function() {
+            // We check again in case the file introduced new dependencies.
+            angular.bootstrap(document, [mainModulePathArg]);
+        }, 0);
+    }
+}
+
 function insertScript(path) {
     var d = deferred();
+
+    lock('script:' + path);
+    d.promise.then(function() {
+        unlock('script:' + path);
+    });
+
     var newScriptTag = document.createElement('script');
     newScriptTag.type = "text/javascript";
     newScriptTag.src = path;
@@ -137,32 +180,6 @@ function insertScript(path) {
     document.head.appendChild(newScriptTag);
 
     return d.promise;
-}
-
-function maybeBootstrap(path) {
-    if (!(path in loadedModuleMap)) {
-        throw new Error('Path "' + path + '" was not loaded.');
-    }
-    else if (loadedModuleMap[path]) {
-        throw new Error('Path "' + path + '" was loaded twice.');
-    }
-
-    loadedModuleMap[path] = true;
-    // Wait until the current Javascript code is entirely loaded before
-    // checking the bootstrap lock.
-    if (--bootstrapLockCount == 0) {
-        if (isBootstrapped) {
-            throw new Error('App already bootstrapped.');
-        }
-        isBootstrapped = true;
-
-        window.setTimeout(function() {
-            // We check again in case the file introduced new dependencies.
-            if (bootstrapLockCount == 0) {
-                angular.bootstrap(document, [mainModulePathArg]);
-            }
-        }, 0);
-    }
 }
 
 function getAttribute(name, defaultValue) {
@@ -197,17 +214,24 @@ function loaderFn(path, options) {
     function recursiveLoader(d) {
         if (path.length) {
             var p = pathFromModuleName(path.shift());
-            if (!p || p in loadedModuleMap) {
+            if (!p || locked(p)) {
                 return recursiveLoader(d);
             }
 
-            d.then(function() {
-                recursiveLoader(insertScript(p));
-            }, function(val) {
-                returnDefer.reject(val);
+            lock(p);
+            d = insertScript(p).then(function() {
+                recursiveLoader(d);
+                unlock(p);
+            }, function(reason) {
+                throw new Error(reason);
             });
         }
         else {
+            if (!d) {
+                returnDefer.resolve();
+                return;
+            }
+
             d.then(function(val) {
                 returnDefer.resolve(val);
             }, function(val) {
@@ -217,22 +241,21 @@ function loaderFn(path, options) {
     }
 
     if (isSequence) {
-        var p = pathFromModuleName(path.shift());
-        recursiveLoader(insertScript(p));
+        recursiveLoader();
     }
     else {
         var counter = 0;
         while (path.length > 0) {
-            counter++;
-
             var p = pathFromModuleName(path.shift());
-            if (!p || p in loadedModuleMap) {
+            if (!p || locked(p)) {
                 continue;
             }
 
-            recursiveLoader(insertScript(p));
+            counter++;
+            lock(p);
             insertScript(p).then(function(val) {
                 if (--counter) returnDefer.resolve(val);
+                unlock(p);
             }, function(err) {
                 returnDefer.reject(err);
             });
@@ -251,19 +274,13 @@ angular.extend(loaderFn, {
 
 angular.extend(angular, {
     loader: loaderFn,
-    requires: function(path, checkerFn) {
-        if (typeof path == 'object') {
-            for (var name in path) {
-                angular.requires(name, path[name]);
+    requires: function(name, checkerFn) {
+        if (typeof name == 'object') {
+            for (var n in name) {
+                angular.requires(n, name[n]);
             }
             return angular;
         }
-        path = pathFromModuleName(path);
-        if (!path || path in loadedModuleMap) {
-            return angular;
-        }
-
-
         if (checkerFn) {
             // We can specify either a function to be called, a string
             // representing the name of an object or an array of strings.
@@ -283,24 +300,25 @@ angular.extend(angular, {
             }
         }
 
-        if (typeof checkerFn == 'null' || checkerFn()) {
+        if (locked('requires:' + name)) {
             return angular;
         }
-        loadedModuleMap[path] = false;
-        insertScript(path);
-        bootstrapLockCount++;
 
-        var start = +new Date();
-        var interval = window.setInterval(function() {
-            if (checkerFn()) {
-                maybeBootstrap(path);
-                // For every interval created we will clear it by design.
-                window.clearInterval(interval);
-            }
-            else if (new Date() - start >= timeoutArg) {
-                throw new Error('Timed out loading "' + path + '".');
-            }
+        lock('requires:' + name);
+        angular.loader([name]).then(function() {
+            var start = +new Date();
+            var interval = window.setInterval(function() {
+                if (checkerFn()) {
+                    unlock('requires:' + name);
+                    // For every interval created we will clear it by design.
+                    window.clearInterval(interval);
+                }
+                else if (new Date() - start >= timeoutArg) {
+                    throw new Error('Timed out loading "' + path + '".');
+                }
+            });
         });
+
         return angular;
     },
     module: function() {
@@ -317,21 +335,18 @@ angular.extend(angular, {
         if (requires instanceof Array) {
             for (var i = 0; i < requires.length; i++) {
                 var path = pathFromModuleName(requires[i]);
-                if (!path || path in loadedModuleMap) {
+                if (!path || locked(requires[i])) {
                     continue;
                 }
 
-                loadedModuleMap[path] = false;
+                lock(requires[i]);
                 insertScript(path);
-
-                // We do it here because the call above might throw.
-                bootstrapLockCount++;
             }
         }
 
         var path = pathFromModuleName(name);
         if (path) {
-            maybeBootstrap(path);  // If we're done, bootstrap angular.
+            unlock(name);
         }
         return ret;
     }
@@ -339,9 +354,7 @@ angular.extend(angular, {
 
 
 // Load the first module.
-bootstrapLockCount++;
-var mainModulePath = pathFromModuleName(mainModulePathArg);
-loadedModuleMap[mainModulePath] = false;
-insertScript(mainModulePath);
+lock(mainModulePathArg);
+angular.loader(mainModulePathArg);
 
 })();
