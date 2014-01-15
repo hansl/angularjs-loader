@@ -113,7 +113,7 @@ function getAttribute(name, defaultValue) {
     }
     else if (typeof defaultValue == 'undefined') {
         throw new Error('Need to specify an "' + name
-                      + '" attribute to angularjs-script.');
+                      + '" attribute to angularjs-loader.');
     }
 }
 

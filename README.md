@@ -1,4 +1,4 @@
-# angularjs-script
+# angularjs-loader
 
 A script loader for AngularJS that perform AMD-like script injection without the need for special syntax.
 
@@ -18,7 +18,7 @@ So I decided to go ahead and build this little script. Here's how it works:
 >    <html>
 >        <head>
 >            <script type="text/javascript" src="path/to/angular.js"></script>
->            <script type="text/javascript" src="path/to/angularjs-script.js" app="test_app"></script>
+>            <script type="text/javascript" src="path/to/angularjs-loader.js" app="test_app"></script>
 >        </head>
 >        
 >        <body>
@@ -38,7 +38,7 @@ So I decided to go ahead and build this little script. Here's how it works:
 >         this.value = 'Hello World!';
 >     });
 
-What angularjs-script does is that it sees the dependency from test_app to test_ctrl and load test_ctrl automatically. It then bootstrap AngularJS when all the scripts are loaded.
+What angularjs-loader does is that it sees the dependency from test_app to test_ctrl and load test_ctrl automatically. It then bootstrap AngularJS when all the scripts are loaded.
 
 Before you needed all the calls to RequireJS and defining shim, this plugin try to fix all that without the need for crazy shim.
 
