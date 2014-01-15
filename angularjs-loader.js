@@ -49,6 +49,60 @@ function getConfig(name, defaultValue) {
     }
 }
 
+/**
+ * A really simple promise object.
+ */
+function deferred() {
+    var success = [];
+    var error = [];
+    var pending = true;
+    var value;
+    var reason;
+
+    var deferred = {
+        resolve: function(val) {
+            value = val;
+            for (var i = 0; i < success.length; i++) {
+                success[i](val);
+            }
+            pending = false;
+        },
+        reject: function(val) {
+            reason = val;
+            for (var i = 0; i < error.length; i++) {
+                error[i](val);
+            }
+            pending = false;
+        },
+        promise: {
+            then: function(fn, errFn) {
+                if (!pending) {
+                    if (value) {
+                        fn(value);
+                    }
+                    else {
+                        errFn(reason);
+                    }
+                }
+                else {
+                    if (fn) {
+                        success.push(fn);
+                    }
+                    if (errFn) {
+                        error.push(errFn);
+                    }
+                }
+                return deferred.promise;
+            },
+            error: function(fn) {
+                return deferred.then(null, fn);
+            }
+        }
+    };
+
+    return deferred;
+}
+
 function transformPath(path, transformList) {
     var original = path;
     for (var i = 0, fn; fn = transformList[i]; i++) {
@@ -72,21 +126,17 @@ function pathFromModuleName(name) {
     return path;
 }
 
-function insertScript(path, successFn, errorFn) {
+function insertScript(path) {
+    var d = deferred();
     var newScriptTag = document.createElement('script');
     newScriptTag.type = "text/javascript";
     newScriptTag.src = path;
-    if (successFn) {
-        newScriptTag.addEventListener('load', function(ev) {
-            successFn(ev);
-        });
-    }
-    else if (errorFn) {
-        newScriptTag.addEventListener('error', function(ev) {
-            errorFn(ev);
-        });
-    }
+
+    newScriptTag.addEventListener('load', function(ev) { d.resolve(ev); });
+    newScriptTag.addEventListener('error', function(ev) { d.reject(ev); });
     document.head.appendChild(newScriptTag);
+
+    return d.promise;
 }
 
 function maybeBootstrap(path) {
@@ -125,30 +175,71 @@ function getAttribute(name, defaultValue) {
     }
 }
 
-function loaderFn(path, successFn) {
+function loaderFn(path, options) {
+    // Backward compatibility with the old (pre 0.3.0) loader.
+    if (typeof options !== 'object') {
+        return loaderFn(path, {
+            sequence: true
+        }).then(options);
+    }
+
     if (typeof path == 'string') {
         path = [path];
     }
-    function recursiveLoader() {
-        if (path.length) {
-            var p = path.shift();
 
-            p = pathFromModuleName(p);
+    var isSequence = options.sequence || false;
+    var returnDefer = deferred();
+    if (path.length == 0) {
+        returnDefer.resolve();
+        return returnDefer;
+    }
+
+    function recursiveLoader(d) {
+        if (path.length) {
+            var p = pathFromModuleName(path.shift());
             if (!p || p in loadedModuleMap) {
-                return recursiveLoader();
+                return recursiveLoader(d);
             }
-            loadedModuleMap[p] = false;
-            bootstrapLockCount++;
-            insertScript(p, function() {
-                recursiveLoader();
-                maybeBootstrap(p);
+
+            d.then(function() {
+                recursiveLoader(insertScript(p));
+            }, function(val) {
+                returnDefer.reject(val);
             });
         }
         else {
-            successFn();
+            d.then(function(val) {
+                returnDefer.resolve(val);
+            }, function(val) {
+                returnDefer.reject(val);
+            });
         }
     }
-    recursiveLoader();
+
+    if (isSequence) {
+        var p = pathFromModuleName(path.shift());
+        recursiveLoader(insertScript(p));
+    }
+    else {
+        var counter = 0;
+        while (path.length > 0) {
+            counter++;
+
+            var p = pathFromModuleName(path.shift());
+            if (!p || p in loadedModuleMap) {
+                continue;
+            }
+
+            recursiveLoader(insertScript(p));
+            insertScript(p).then(function(val) {
+                if (--counter) returnDefer.resolve(val);
+            }, function(err) {
+                returnDefer.reject(err);
+            });
+        }
+    }
+
+    return returnDefer.promise;
 }
 
 angular.extend(loaderFn, {
