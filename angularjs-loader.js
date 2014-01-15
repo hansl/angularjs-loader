@@ -1,6 +1,14 @@
+/* Copyright (C) 2013 Hans Larsen */
 'use strict';
 
 /**
+ * AngularJS Loader.
+ * Automatically load scripts based on angular.module() calls (ala AMD).
+ *******************************************************************************
+ * In my experience this is faster than RequireJS in our case (around 60 scripts
+ * both including utility functions and angular modules).
+ *******************************************************************************
+ * Documentation: see http://github.com/hansl/angularjs-loader
  */
 (function() {
 
