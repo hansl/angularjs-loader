@@ -316,7 +316,7 @@ angular.extend(angular, {
                 else if (new Date() - start >= timeoutArg) {
                     throw new Error('Timed out loading "' + path + '".');
                 }
-            });
+            }, 10);
         });
 
         return angular;
