@@ -190,6 +190,7 @@ function getAttribute(name, defaultValue) {
         throw new Error('Need to specify an "' + name
                       + '" attribute to angularjs-loader.');
     }
+    return defaultValue;
 }
 
 function loaderFn(path, options) {
@@ -211,9 +212,67 @@ function loaderFn(path, options) {
         return returnDefer;
     }
 
+    var checkerFn = options.checker || function() { return true; };
+    var checkerMap = {};
+
+    if (typeof checkerFn == 'object') {
+        checkerMap = checkerFn;
+    }
+    else {
+        for (var i = 0; i < path.length; i++) {
+            checkerMap[path[i]] = checkerFn;
+        }
+    }
+
+    // Replace all the values in checkerMap by a function. If it's already
+    // do nothing. If it's a string or an array adhere to the documentation.
+    for (var script in checkerMap) {
+        var fn = checkerMap[script];
+        if (typeof fn == 'function') {
+            continue;
+        }
+
+        if (typeof fn == 'string') {
+            fn = [fn];
+        }
+
+        checkerMap[script] = function() {
+            for (var i = 0; i < fn.length; i++) {
+                if (typeof window[fn[i]] == 'undefined') {
+                    return false;
+                }
+            }
+            return true;
+        };
+    }
+
+    var timeout = options.timeout || timeoutArg;
+
+    function unlockOnChecker(name, lock) {
+        if (!(name in checkerMap)) {
+            unlock(lock);
+            return;
+        }
+        else {
+            var start = +new Date();
+            var interval = window.setInterval(function() {
+                if (checkerMap[name](name)) {
+                    // For every interval created we will clear it by design.
+                    window.clearInterval(interval);
+                    unlock(lock);
+                }
+                else if (new Date() - start >= timeout) {
+                    window.clearInterval(interval);
+                    throw new Error('Timed out loading "' + path + '".');
+                }
+            }, 10);
+        }
+    }
+
     function recursiveLoader(d) {
         if (path.length) {
-            var p = pathFromModuleName(path.shift());
+            var name = path.shift();
+            var p = pathFromModuleName(name);
             if (!p || locked(p)) {
                 return recursiveLoader(d);
             }
@@ -221,7 +280,7 @@ function loaderFn(path, options) {
             lock(p);
             d = insertScript(p).then(function() {
                 recursiveLoader(d);
-                unlock(p);
+                unlockOnChecker(name, p);
             }, function(reason) {
                 throw new Error(reason);
             });
@@ -246,7 +305,8 @@ function loaderFn(path, options) {
     else {
         var counter = 0;
         while (path.length > 0) {
-            var p = pathFromModuleName(path.shift());
+            var name = path.shift();
+            var p = pathFromModuleName(name);
             if (!p || locked(p)) {
                 continue;
             }
@@ -255,7 +315,7 @@ function loaderFn(path, options) {
             lock(p);
             insertScript(p).then(function(val) {
                 if (--counter) returnDefer.resolve(val);
-                unlock(p);
+                unlockOnChecker(name, p);
             }, function(err) {
                 returnDefer.reject(err);
             });
@@ -279,45 +339,12 @@ angular.extend(angular, {
             for (var n in name) {
                 angular.requires(n, name[n]);
             }
-            return angular;
         }
-        if (checkerFn) {
-            // We can specify either a function to be called, a string
-            // representing the name of an object or an array of strings.
-            if (typeof checkerFn != 'function') {
-                var variable = checkerFn;
-                if (!(variable instanceof Array)) {
-                    variable = [variable];
-                }
-                checkerFn = function() {
-                    for (var i = 0; i < variable.length; i++) {
-                        if (typeof window[variable] == 'undefined') {
-                            return false;
-                        }
-                    }
-                    return true;
-                }
-            }
+        else {
+            angular.loader(name, {
+                checker: checkerFn
+            });
         }
-
-        if (locked('requires:' + name)) {
-            return angular;
-        }
-
-        lock('requires:' + name);
-        angular.loader([name]).then(function() {
-            var start = +new Date();
-            var interval = window.setInterval(function() {
-                if (checkerFn()) {
-                    unlock('requires:' + name);
-                    // For every interval created we will clear it by design.
-                    window.clearInterval(interval);
-                }
-                else if (new Date() - start >= timeoutArg) {
-                    throw new Error('Timed out loading "' + path + '".');
-                }
-            }, 10);
-        });
 
         return angular;
     },
