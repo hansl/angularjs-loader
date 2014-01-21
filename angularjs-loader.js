@@ -56,7 +56,13 @@ function deferred() {
     var reason;
 
     var deferred = {
+        pending: function() {
+            return pending;
+        },
         resolve: function(val) {
+            if (!pending) {
+                throw new Error('Deferred resolved twice.');
+            }
             value = val;
             for (var i = 0; i < success.length; i++) {
                 success[i](val);
