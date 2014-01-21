@@ -194,13 +194,9 @@ function getAttribute(name, defaultValue) {
 }
 
 function loaderFn(path, options) {
-    // Backward compatibility with the old (pre 0.3.0) loader.
-    if (typeof options !== 'object') {
-        return loaderFn(path, {
-            sequence: true
-        }).then(options);
+    if (options === undefined) {
+        options = {};
     }
-
     if (typeof path == 'string') {
         path = [path];
     }
