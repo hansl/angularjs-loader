@@ -258,6 +258,11 @@ function loaderFn(path, options) {
             return;
         }
         else {
+            if (checkerMap[name](name)) {
+                unlock(lock);
+                return;
+            }
+
             var start = +new Date();
             var interval = window.setInterval(function() {
                 if (checkerMap[name](name)) {
