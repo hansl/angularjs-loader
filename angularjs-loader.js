@@ -12,6 +12,11 @@
  */
 (function() {
 
+// Make sure AngularJS is loaded first.
+if (!window['angular']) {
+    throw new Error('AngularJS-loader requires Angular to be loaded first.');
+}
+
 // Get our script tag.
 var allScriptTags = document.getElementsByTagName('script');
 var angularJsLoaderScriptTag = allScriptTags[allScriptTags.length - 1];
