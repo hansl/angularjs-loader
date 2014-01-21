@@ -322,12 +322,18 @@ function loaderFn(path, options) {
 
             counter++;
             lock(p);
-            insertScript(p).then(function(val) {
-                if (--counter) returnDefer.resolve(val);
+
+            var successFn = function(name, p, val) {
+                if ((--counter) == 0) returnDefer.resolve(val);
                 unlockOnChecker(name, p);
-            }, function(err) {
+            };
+
+            insertScript(p).then(successFn.bind(0, name, p), function(err) {
                 returnDefer.reject(err);
             });
+        }
+        if (counter == 0) {
+            returnDefer.resolve();
         }
     }
 
