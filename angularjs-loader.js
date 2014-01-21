@@ -226,6 +226,8 @@ function loaderFn(path, options) {
         }
     }
 
+    angular.extend(checkerMap, getConfig('checker', {}));
+
     // Replace all the values in checkerMap by a function. If it's already
     // do nothing. If it's a string or an array adhere to the documentation.
     for (var script in checkerMap) {
