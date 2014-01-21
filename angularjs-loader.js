@@ -172,17 +172,17 @@ function unlock(name) {
 function insertScript(path) {
     var d = deferred();
 
-    lock('script:' + path);
-    d.promise.then(function() {
-        unlock('script:' + path);
-    });
-
     var newScriptTag = document.createElement('script');
     newScriptTag.type = "text/javascript";
     newScriptTag.src = path;
 
     newScriptTag.addEventListener('load', function(ev) { d.resolve(ev); });
     newScriptTag.addEventListener('error', function(ev) { d.reject(ev); });
+    window.setTimeout(function() {
+        if (d.pending()) {
+            d.reject(new Error('Script did not load in time.'));
+        }
+    }, timeoutArg);
     document.head.appendChild(newScriptTag);
 
     return d.promise;
