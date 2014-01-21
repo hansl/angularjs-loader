@@ -338,6 +338,12 @@ angular.extend(loaderFn, {
     config: function(cfg) {
         angular.extend(config, cfg);
         return loaderFn;
+    },
+    lock: function(name) {
+        lock('ext:' + name);
+    },
+    unlock: function(name) {
+        unlock('ext:' + name);
     }
 });
 
