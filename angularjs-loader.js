@@ -157,7 +157,7 @@ function locked(name) {
 
 function lock(name) {
     if (name in locks) {
-        throw new Error('Path "' + name + '" is being loaded twice.')
+        throw new Error('Path "' + name + '" is being loaded twice.');
         return false;
     }
     locks[name] = false;
@@ -166,7 +166,7 @@ function lock(name) {
 
 function unlock(name) {
     if (!(name in locks)) {
-        throw new Error('Path "' + name + '" was not loaded.');        
+        throw new Error('Path "' + name + '" was not loaded.');
     }
     if (locks[name]) {
         throw new Error('Path "' + name + '" was loaded twice.');
