@@ -265,6 +265,15 @@ function loaderFn(path, options) {
 
     var timeout = options.timeout || timeoutArg;
 
+    // Allow us to specify that a module will be declared in the loading of these
+    // scripts.
+    var modules = options.modules;
+    if (modules) {
+        for (var i = 0; i < modules.length; i++) {
+            lock(modules[i]);
+        }
+    }
+
     function unlockOnChecker(name, lock) {
         if (!(name in checkerMap)) {
             unlock(lock);
