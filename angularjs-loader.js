@@ -460,7 +460,8 @@ var angularJsLoaderScriptTag = (function() {
     return null;
 })();
 
-if (!angularJsLoaderScriptTag.getAttribute('noinit', false)) {
+if (!(angularJsLoaderScriptTag.getAttribute('noinit', false)
+      || window['__angularjs_loader_noinit'] === true)) {
     angular.loader.init({
         app: angularJsLoaderScriptTag.getAttribute('app'),
         root: angularJsLoaderScriptTag.getAttribute('root', ''),
