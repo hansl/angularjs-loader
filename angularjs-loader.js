@@ -33,6 +33,13 @@ function getConfig(name, defaultValue) {
     }
 }
 
+function bind(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return function() {
+        fn.apply(this, args.concat(arguments));
+    }
+}
+
 function extend(orig, extension, override) {
     if (typeof override == 'undefined')
         override = true;
@@ -349,7 +356,7 @@ function loaderFn(path, options) {
                 unlockOnChecker(name, p);
             };
 
-            insertScript(p).then(successFn.bind(0, name, p), function(err) {
+            insertScript(p).then(bind(successFn, name, p), function(err) {
                 returnDefer.reject(err);
             });
         }
