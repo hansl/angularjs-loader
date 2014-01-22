@@ -55,6 +55,7 @@ function deferred() {
     var success = [];
     var error = [];
     var pending = true;
+    var succeeded;
     var value;
     var reason;
 
@@ -70,6 +71,7 @@ function deferred() {
             for (var i = 0; i < success.length; i++) {
                 success[i](val);
             }
+            succeeded = true;
             pending = false;
             return deferred;
         },
@@ -79,12 +81,13 @@ function deferred() {
                 error[i](val);
             }
             pending = false;
+            succeeded = false;
             return deferred;
         },
         promise: {
             then: function(fn, errFn) {
                 if (!pending) {
-                    if (value) {
+                    if (succeeded) {
                         fn && fn(value);
                     }
                     else {
