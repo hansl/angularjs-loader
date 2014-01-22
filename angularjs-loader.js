@@ -363,7 +363,7 @@ function loaderFn(path, options) {
         // If a script (angular itself) set angular.module function, we
         // override it properly.
         returnDefer.promise.then(function() {
-            if (angular.module) {
+            if (angular.module && !angularModuleOriginalFn) {
                 angularModuleOriginalFn = angular.module;
                 angular.module = newAngularModuleFn;
             }
