@@ -11,28 +11,21 @@
  * Documentation: see http://github.com/hansl/angularjs-loader
  */
 (function() {
-var config = {};
+var config = {
+    path: {},
+    checker: {},
+    pathTransform: []
+};
 
 var mainModulePathArg;
 var rootPathArg;
 var timeoutArg;
+var bootstrapFnArg;
 
 var angularModuleOriginalFn;
 if ('angular' in window) {
     angularModuleOriginalFn = angular.module;
 }
-
-var defaultTransformPathList = [
-    function isAbsoluteUrl(path) {
-        return path.search(/^(https?:)?\/\/.+/) == 0 ? null : path;
-    },
-    function prependRootPath(path) {
-        return (rootPathArg ? rootPathArg + '/' : '') + path;
-    },
-    function appendJsExtension(path) {
-        return path.search(/\.js$/) == -1 ? path + '.js' : path;
-    }
-];
 
 function getConfig(name, defaultValue) {
     if (name in config) {
@@ -43,9 +36,14 @@ function getConfig(name, defaultValue) {
     }
 }
 
-function extend(orig, extension) {
+function extend(orig, extension, override) {
+    if (typeof override == 'undefined')
+        override = true;
+
     for (var name in extension) {
-        orig[name] = extension[name];
+        if (override || !(name in orig)) {
+            orig[name] = extension[name];
+        }
     }
     return orig;
 }
@@ -125,12 +123,25 @@ function transformPath(path, transformList) {
 }
 
 function pathFromModuleName(name) {
-    var map = getConfig('path', {});
+    var map = config.path;
+
     if (map[name] === null) return null;
 
-    var transformList = getConfig('pathTransform', [])
-                                .concat(defaultTransformPathList);
-    var path = transformPath(name in map ? map[name] : name, transformList);
+    var transformList = config.pathTransform;
+    var path = name in map ? map[name] : transformPath(name, transformList);
+
+    // If the path is a URI, just return it.
+    if (path.search(/^(https?:)?\/\/.+/) == 0) {
+        return path;
+    }
+
+    // Prepend the root path if not absolute.
+    path = ((rootPathArg && path[0] != '/') ? rootPathArg + '/' : '') + path;
+
+    // If the path doesn't end in .js, add that.
+    if (path.search(/\.js$/) == -1) {
+        path += '.js';
+    }
 
     return path;
 }
@@ -172,6 +183,9 @@ function unlock(name) {
         window.setTimeout(function() {
             // We check again in case the file introduced new dependencies.
             angular.bootstrap(document, [mainModulePathArg]);
+            if (bootstrapFnArg) {
+                bootstrapFnArg();
+            }
         }, 0);
     }
 }
@@ -207,7 +221,7 @@ function loaderFn(path, options) {
     var returnDefer = deferred();
     if (path.length == 0) {
         returnDefer.resolve();
-        return returnDefer;
+        return returnDefer.promise;
     }
 
     var checkerFn = options.checker || function() { return true; };
@@ -382,23 +396,23 @@ function newAngularModuleFn() {
 
 extend(loaderFn, {
     config: function(cfg) {
-        extend(config, cfg);
+        extend(config.checker, cfg.checker, false);
+        extend(config.path, cfg.path, false);
+        config.pathTransform = config.pathTransform.concat(cfg.pathTransform);
         return loaderFn;
     },
     init: function(options) {
         mainModulePathArg = options.app;
         rootPathArg = options.root || '';
         timeoutArg = options.timeout || 30000;
+        bootstrapFnArg = options.bootstrapFn;
         extend(config, options.config || {});
 
-        // Load the first module.
-        if (mainModulePathArg) {
-            lock(mainModulePathArg);
-            return angular.loader(mainModulePathArg);
+        if (!mainModulePathArg) {
+            throw new Error('The "app" argument is mandatory.')
         }
-        else {
-            return deferred().resolve().promise;
-        }
+
+        lock(mainModulePathArg);
     },
     lock: function(name) {
         lock('ext:' + name);
@@ -443,6 +457,7 @@ if (!angularJsLoaderScriptTag.getAttribute('noinit', false)) {
         root: angularJsLoaderScriptTag.getAttribute('root', ''),
         timeout: angularJsLoaderScriptTag.getAttribute('timeout', 30000)
     });
+    angular.loader(mainModulePathArg);
 }
 
 })();
