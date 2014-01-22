@@ -455,7 +455,7 @@ extend(window.angular || (window.angular = {}), {
 var allScriptTags = document.getElementsByTagName('script');
 var angularJsLoaderScriptTag = (function() {
     for (var i = 0; i < allScriptTags.length; i++) {
-        if (/angularjs-loader\.js$/.test(allScriptTags[i].src)) {
+        if (/angularjs-loader\.js([?#].+)?$/.test(allScriptTags[i].src)) {
             return allScriptTags[i];
         }
     }
