@@ -267,7 +267,9 @@ function loaderFn(path, options) {
     var modules = options.modules;
     if (modules) {
         for (var i = 0; i < modules.length; i++) {
-            lock(modules[i]);
+            if (!locked(modules[i])) {
+                lock(modules[i]);
+            }
         }
     }
 
