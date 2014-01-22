@@ -73,6 +73,7 @@ function deferred() {
                 success[i](val);
             }
             pending = false;
+            return deferred;
         },
         reject: function(val) {
             reason = val;
@@ -80,6 +81,7 @@ function deferred() {
                 error[i](val);
             }
             pending = false;
+            return deferred;
         },
         promise: {
             then: function(fn, errFn) {
@@ -331,14 +333,16 @@ function loaderFn(path, options) {
         }
     }
 
-    // If a script (e.g. angular itself) overrode our new angular.module()
-    // function, we override it again.
-    returnDefer.promise.then(function() {
-        if (angular.module !== newAngularModuleFn) {
-            angularModuleOriginalFn = angular.module;
-            angular.module = newAngularModuleFn;
-        }
-    });
+    if (!angularModuleOriginalFn) {
+        // If a script (angular itself) set angular.module function, we
+        // override it properly.
+        returnDefer.promise.then(function() {
+            if (angular.module) {
+                angularModuleOriginalFn = angular.module;
+                angular.module = newAngularModuleFn;
+            }
+        });
+    }
     return returnDefer.promise;
 }
 
@@ -383,16 +387,18 @@ extend(loaderFn, {
     },
     init: function(options) {
         mainModulePathArg = options.app;
-        if (!mainModulePathArg) {
-            throw new Error('Argument "app" mandatory.');
-        }
         rootPathArg = options.root || '';
         timeoutArg = options.timeout || 30000;
         extend(config, options.config || {});
 
         // Load the first module.
-        lock(mainModulePathArg);
-        return angular.loader(mainModulePathArg);
+        if (mainModulePathArg) {
+            lock(mainModulePathArg);
+            return angular.loader(mainModulePathArg);
+        }
+        else {
+            return deferred().resolve().promise;
+        }
     },
     lock: function(name) {
         lock('ext:' + name);
@@ -417,8 +423,7 @@ extend(window.angular || (window.angular = {}), {
         }
 
         return angular;
-    },
-    module: newAngularModuleFn
+    }
 });
 
 // Get our script tag.
