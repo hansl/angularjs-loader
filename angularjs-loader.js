@@ -22,10 +22,7 @@ var rootPathArg;
 var timeoutArg;
 var bootstrapFnArg;
 
-var angularModuleOriginalFn;
-if ('angular' in window) {
-    angularModuleOriginalFn = angular.module;
-}
+var angularModuleOriginalFn = window.angular && window.angular.module;
 
 function getConfig(name, defaultValue) {
     if (name in config) {
