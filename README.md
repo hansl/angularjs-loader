@@ -1,4 +1,4 @@
-# angularjs-loader
+# angularjs-script
 
 A script loader for AngularJS that perform AMD-like script injection without the need for special syntax.
 
@@ -53,6 +53,8 @@ It takes 3 arguments:
 * `app`. The main module to load. This is the name of the first script to load.
 * `root`. A root to prepend to every path (except absolute paths). By default, no path is prepended.
 * `timeout`. A timeout for loading scripts, in milliseconds. If a script hasn't fired an `onload` event, an error will be thrown. By default, 30 seconds.
+* `onbootstrap`. Code to evaluate when the Angular is finished loading.
+* `noinit`. Any non-empty string to prevent the AngularJS-Loader from automatically starting the initialization process. See [Tests](#Tests).
 
 ## Angular Modules
 
@@ -82,7 +84,43 @@ Omitting this option performs no checks at all and unlock the bootstrap when the
 
 The object returned can be used as a simpler Angular deferred promise object, but there's no `finally` method on it, only `catch` and `then`. The promise will be fulfilled after the checker has returned `true` for all the scripts.
 
-## Configuration
+## Locking the Bootstrap
+
+You can lock bootstrapping of AngularJS with `angular.loader.lock()` (and unlock it with `angular.loader.unlock()`). The functions take a name as parameter. Locking the same name twice, unlocking an unlocked or unknown name are all errors. The only limit on locks are that you cannot lock/unlock once the bootstrap happened. Anything after bootstrapping angular is considered an error.
+
+Locking and unlocking before the end of loading all the modules and their dependencies will simply result in waiting for the dependencies to finish loading.
+
+## <a name="Configuration"></a> Configuration
+
+Configuration is set by calling `angular.loader.config()`. The function takes an object as argument and update the internal configuration.
+
+The list of configuration options is as follow:
+
+* `path`. A map of name to full path (or `null`). If a module name is present in this map, the loader will use this path instead of the name to load. If the full path in the map is `null`, the script will return 
+* `pathTransform`. A list of functions that take a path and return a path or `null`. This is to allow transforming a module or script name to its file path. The transform chain will not be executed if the path is part of the `path` option above or is a full URI.
+* `checker`. A checker map for modules. See loading custom scripts above. This is to simplify the calls to `angular.loader()`.
+
+The process of getting a script path from a module name is as follow (pseudocode):
+
+    path = config.path[name]
+    IF path IS NULL:
+        DO NOT LOAD THE SCRIPT
+        RETURN
+    IF path IS URI:
+        RETURN path.
+
+    FOR ALL xform IN config.transformPath:
+        old_path = path
+        path = xform(path, name)
+        IF path IS NULL:
+            path = old_path
+            BREAK
+
+    IF path DOES NOT start with '/', prepend root
+    IF path DOES NOT end with '.js', append '.js'
+    RETURN path
+
+## <a name="Tests"></a> Tests (Karma and Jasmine)
 
 *__To Be Done!__*
 

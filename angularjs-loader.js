@@ -24,15 +24,6 @@ var bootstrapFnArg;
 
 var angularModuleOriginalFn = window.angular && window.angular.module;
 
-function getConfig(name, defaultValue) {
-    if (name in config) {
-        return config[name];
-    }
-    else {
-        return defaultValue;
-    }
-}
-
 function bind(fn) {
     var args = Array.prototype.slice.call(arguments, 1);
     return function() {
@@ -243,7 +234,7 @@ function loaderFn(path, options) {
         }
     }
 
-    extend(checkerMap, getConfig('checker', {}));
+    extend(checkerMap, config.checker);
 
     // Replace all the values in checkerMap by a function. If it's already
     // do nothing. If it's a string or an array adhere to the documentation.
@@ -424,6 +415,12 @@ extend(loaderFn, {
         rootPathArg = options.root || '';
         timeoutArg = options.timeout || 30000;
         bootstrapFnArg = options.bootstrapFn;
+        if (typeof bootstrapFnArg == 'string') {
+            var fnCode = bootstrapFnArg;
+            bootstrapFnArg = function() {
+                eval(fnCode);
+            };
+        }
         extend(config, options.config || {});
 
         if (!mainModulePathArg) {
@@ -473,6 +470,7 @@ if (!(angularJsLoaderScriptTag.getAttribute('noinit', false)
       || window['__angularjs_loader_noinit'] === true)) {
     angular.loader.init({
         app: angularJsLoaderScriptTag.getAttribute('app'),
+        bootstrapFn: angularJsLoaderScriptTag.getAttribute('onbootstrap', ''),
         root: angularJsLoaderScriptTag.getAttribute('root', ''),
         timeout: angularJsLoaderScriptTag.getAttribute('timeout', 30000)
     });
