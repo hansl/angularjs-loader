@@ -1,7 +1,7 @@
 {
   "name": "angularjs-loader",
   "main": "angularjs-loader.js",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "homepage": "https://github.com/hansl/angularjs-loader",
   "authors": [
     "Hans Larsen <hans@hansl.ca>"
