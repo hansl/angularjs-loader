@@ -11,23 +11,16 @@
  * Documentation: see http://github.com/hansl/angularjs-loader
  */
 (function() {
-
-// Make sure AngularJS is loaded first.
-if (!window['angular']) {
-    throw new Error('AngularJS-loader requires Angular to be loaded first.');
-}
-
-// Get our script tag.
-var allScriptTags = document.getElementsByTagName('script');
-var angularJsLoaderScriptTag = allScriptTags[allScriptTags.length - 1];
-
-var mainModulePathArg = getAttribute('app');
-var rootPathArg = getAttribute('root', '');
-var timeoutArg = getAttribute('timeout', 30000);
-
-var angularModuleOriginalFn = angular.module;
-
 var config = {};
+
+var mainModulePathArg;
+var rootPathArg;
+var timeoutArg;
+
+var angularModuleOriginalFn;
+if ('angular' in window) {
+    angularModuleOriginalFn = angular.module;
+}
 
 var defaultTransformPathList = [
     function isAbsoluteUrl(path) {
@@ -48,6 +41,13 @@ function getConfig(name, defaultValue) {
     else {
         return defaultValue;
     }
+}
+
+function extend(orig, extension) {
+    for (var name in extension) {
+        orig[name] = extension[name];
+    }
+    return orig;
 }
 
 /**
@@ -193,17 +193,6 @@ function insertScript(path) {
     return d.promise;
 }
 
-function getAttribute(name, defaultValue) {
-    if (angularJsLoaderScriptTag.attributes[name]) {
-        return angularJsLoaderScriptTag.attributes[name].value;
-    }
-    else if (typeof defaultValue == 'undefined') {
-        throw new Error('Need to specify an "' + name
-                      + '" attribute to angularjs-loader.');
-    }
-    return defaultValue;
-}
-
 function loaderFn(path, options) {
     if (options === undefined) {
         options = {};
@@ -231,7 +220,7 @@ function loaderFn(path, options) {
         }
     }
 
-    angular.extend(checkerMap, getConfig('checker', {}));
+    extend(checkerMap, getConfig('checker', {}));
 
     // Replace all the values in checkerMap by a function. If it's already
     // do nothing. If it's a string or an array adhere to the documentation.
@@ -342,13 +331,68 @@ function loaderFn(path, options) {
         }
     }
 
+    // If a script (e.g. angular itself) overrode our new angular.module()
+    // function, we override it again.
+    returnDefer.promise.then(function() {
+        if (angular.module !== newAngularModuleFn) {
+            angularModuleOriginalFn = angular.module;
+            angular.module = newAngularModuleFn;
+        }
+    });
     return returnDefer.promise;
 }
 
-angular.extend(loaderFn, {
+function newAngularModuleFn() {
+    var name = arguments[0];
+    var requires = arguments[1];
+    if (!angularModuleOriginalFn) {
+        throw new Error('Angular was not loaded.');
+    }
+
+    var ret = angularModuleOriginalFn.apply(angular, arguments);
+
+    // If module() was called with only 1 argument, it was to get the module
+    // and not create a new one.
+    if (arguments.length == 1) {
+        return ret;
+    }
+
+    if (requires instanceof Array) {
+        for (var i = 0; i < requires.length; i++) {
+            var path = pathFromModuleName(requires[i]);
+            if (!path || locked(requires[i])) {
+                continue;
+            }
+
+            lock(requires[i]);
+            insertScript(path);
+        }
+    }
+
+    var path = pathFromModuleName(name);
+    if (path) {
+        unlock(name);
+    }
+    return ret;
+}
+
+extend(loaderFn, {
     config: function(cfg) {
-        angular.extend(config, cfg);
+        extend(config, cfg);
         return loaderFn;
+    },
+    init: function(options) {
+        mainModulePathArg = options.app;
+        if (!mainModulePathArg) {
+            throw new Error('Argument "app" mandatory.');
+        }
+        rootPathArg = options.root || '';
+        timeoutArg = options.timeout || 30000;
+        extend(config, options.config || {});
+
+        // Load the first module.
+        lock(mainModulePathArg);
+        return angular.loader(mainModulePathArg);
     },
     lock: function(name) {
         lock('ext:' + name);
@@ -358,7 +402,7 @@ angular.extend(loaderFn, {
     }
 });
 
-angular.extend(angular, {
+extend(window.angular || (window.angular = {}), {
     loader: loaderFn,
     requires: function(name, checkerFn) {
         if (typeof name == 'object') {
@@ -374,40 +418,26 @@ angular.extend(angular, {
 
         return angular;
     },
-    module: function() {
-        var name = arguments[0];
-        var requires = arguments[1];
-        var ret = angularModuleOriginalFn.apply(angular, arguments);
-
-        // If module() was called with only 1 argument, it was to get the module
-        // and not create a new one.
-        if (arguments.length == 1) {
-            return ret;
-        }
-
-        if (requires instanceof Array) {
-            for (var i = 0; i < requires.length; i++) {
-                var path = pathFromModuleName(requires[i]);
-                if (!path || locked(requires[i])) {
-                    continue;
-                }
-
-                lock(requires[i]);
-                insertScript(path);
-            }
-        }
-
-        var path = pathFromModuleName(name);
-        if (path) {
-            unlock(name);
-        }
-        return ret;
-    }
+    module: newAngularModuleFn
 });
 
+// Get our script tag.
+var allScriptTags = document.getElementsByTagName('script');
+var angularJsLoaderScriptTag = (function() {
+    for (var i = 0; i < allScriptTags.length; i++) {
+        if (/angularjs-loader\.js$/.test(allScriptTags[i].src)) {
+            return allScriptTags[i];
+        }
+    }
+    return null;
+})();
 
-// Load the first module.
-lock(mainModulePathArg);
-angular.loader(mainModulePathArg);
+if (!angularJsLoaderScriptTag.getAttribute('noinit', false)) {
+    angular.loader.init({
+        app: angularJsLoaderScriptTag.getAttribute('app'),
+        root: angularJsLoaderScriptTag.getAttribute('root', ''),
+        timeout: angularJsLoaderScriptTag.getAttribute('timeout', 30000)
+    });
+}
 
 })();
