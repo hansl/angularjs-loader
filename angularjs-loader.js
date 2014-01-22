@@ -343,7 +343,7 @@ function loaderFn(path, options) {
             });
         }
         if (counter == 0) {
-            returnDefer.resolve();
+            returnDefer.resolve(true);
         }
     }
 
