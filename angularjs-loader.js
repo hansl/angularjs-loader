@@ -6,11 +6,32 @@
  * Automatically load scripts based on angular.module() calls (ala AMD).
  *******************************************************************************
  * In my experience this is faster than RequireJS in our case (around 60 scripts
- * both including utility functions and angular modules).
+ * both including utility functions and angular modules). The end page loads
+ * many more scripts in parallels, reducing application bootstrap time noticably
+ * in Chrome and Safari.
  *******************************************************************************
  * Documentation: see http://github.com/hansl/angularjs-loader
  */
 (function() {
+
+/**
+ * Used for exporting additional functions for unit testing. Should not be used
+ * otherwise.
+ * @const
+ */
+var TESTING = window['__angularjs_loader_testing'];
+
+/**
+ * These constants are just easier to shorten and reuse when using a
+ * minificator.
+ */
+var UNDEFINED = void 0;
+var NULL = null;
+
+/**
+ * Config parameters passed in angular.loader.config().
+ * @type Config
+ */
 var config = {
     path: {},
     checker: {},
@@ -24,15 +45,8 @@ var bootstrapFnArg;
 
 var angularModuleOriginalFn = window.angular && window.angular.module;
 
-function bind(fn) {
-    var args = Array.prototype.slice.call(arguments, 1);
-    return function() {
-        fn.apply(this, args.concat(arguments));
-    }
-}
-
 function extend(orig, extension, override) {
-    if (typeof override == 'undefined')
+    if (override === UNDEFINED)
         override = true;
 
     for (var name in extension) {
@@ -100,7 +114,7 @@ function deferred() {
                 return deferred.promise;
             },
             error: function(fn) {
-                return deferred.then(null, fn);
+                return deferred.then(NULL, fn);
             }
         }
     };
@@ -113,7 +127,7 @@ function transformPath(path, transformList) {
     for (var i = 0, fn; fn = transformList[i]; i++) {
         var old = path;
         path = fn(path, original);
-        if (path === null) {
+        if (path === NULL) {
             return old;
         }
     }
@@ -123,7 +137,7 @@ function transformPath(path, transformList) {
 function pathFromModuleName(name) {
     var map = config.path;
 
-    if (map[name] === null) return null;
+    if (map[name] === NULL) return NULL;
 
     var transformList = config.pathTransform;
     var path = name in map ? map[name] : transformPath(name, transformList);
@@ -208,7 +222,7 @@ function insertScript(path) {
 }
 
 function loaderFn(path, options) {
-    if (options === undefined) {
+    if (options === UNDEFINED) {
         options = {};
     }
     if (typeof path == 'string') {
@@ -250,7 +264,7 @@ function loaderFn(path, options) {
 
         checkerMap[script] = function() {
             for (var i = 0; i < fn.length; i++) {
-                if (typeof window[fn[i]] == 'undefined') {
+                if (window[fn[i]] === UNDEFINED) {
                     return false;
                 }
             }
@@ -347,7 +361,7 @@ function loaderFn(path, options) {
                 unlockOnChecker(name, p);
             };
 
-            insertScript(p).then(bind(successFn, name, p), function(err) {
+            insertScript(p).then(successFn.bind(0, name, p), function(err) {
                 returnDefer.reject(err);
             });
         }
@@ -463,7 +477,7 @@ var angularJsLoaderScriptTag = (function() {
             return allScriptTags[i];
         }
     }
-    return null;
+    return NULL;
 })();
 
 if (!(angularJsLoaderScriptTag.getAttribute('noinit', false)
