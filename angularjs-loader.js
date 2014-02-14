@@ -319,8 +319,8 @@ function loaderFn(path, options) {
     function recursiveLoader(d) {
         if (path.length) {
             var name = path.shift();
-            var obj = (typeof name == 'object') ? name : {name: name};
-            var p = pathFromModuleName(obj.name);
+            var obj = (typeof name == 'object') ? name : {src: name};
+            var p = pathFromModuleName(obj.src);
             if (!p || locked(p)) {
                 return recursiveLoader(d);
             }
