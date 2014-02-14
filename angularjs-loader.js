@@ -202,12 +202,17 @@ function unlock(name) {
     }
 }
 
-function insertScript(path) {
+function insertScript(path, attr) {
     var d = deferred();
 
     var newScriptTag = document.createElement('script');
     newScriptTag.type = "text/javascript";
     newScriptTag.src = path;
+
+    for (var name in attr) {
+        var value = attr[name];
+        newScriptTag.attributes[name] = value;
+    }
 
     newScriptTag.addEventListener('load', function(ev) { d.resolve(ev); });
     newScriptTag.addEventListener('error', function(ev) { d.reject(ev); });
@@ -314,13 +319,14 @@ function loaderFn(path, options) {
     function recursiveLoader(d) {
         if (path.length) {
             var name = path.shift();
-            var p = pathFromModuleName(name);
+            var obj = (typeof name == 'object') ? name : {name: name};
+            var p = pathFromModuleName(obj.name);
             if (!p || locked(p)) {
                 return recursiveLoader(d);
             }
 
             lock(p);
-            d = insertScript(p).then(function() {
+            d = insertScript(p, obj).then(function() {
                 recursiveLoader(d);
                 unlockOnChecker(name, p);
             }, function(reason) {
@@ -348,7 +354,8 @@ function loaderFn(path, options) {
         var counter = 0;
         while (path.length > 0) {
             var name = path.shift();
-            var p = pathFromModuleName(name);
+            var obj = (typeof name == 'object') ? name : { name: name };
+            var p = pathFromModuleName(obj.name);
             if (!p || locked(p)) {
                 continue;
             }
@@ -361,7 +368,7 @@ function loaderFn(path, options) {
                 unlockOnChecker(name, p);
             };
 
-            insertScript(p).then(successFn.bind(0, name, p), function(err) {
+            insertScript(p, obj).then(successFn.bind(0, name, p), function(err) {
                 returnDefer.reject(err);
             });
         }
