@@ -170,7 +170,6 @@ function locked(name) {
 function lock(name) {
     if (name in locks) {
         throw new Error('Path "' + name + '" is being loaded twice.');
-        return false;
     }
     locks[name] = false;
     lockCount++;
