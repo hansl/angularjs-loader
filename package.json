@@ -21,18 +21,14 @@
     "bugs": {
         "web": "https://github.com/hansl/angularjs-loader/issues"
     },
-    "repositories": [
-        {
+    "repository": {
             "type": "git",
             "url": "https://github.com/hansl/angularjs-loader.git"
-        }
-    ],
-    "licenses": [
-        {
-            "type": "Apache 2.0",
-            "url": "http://opensource.org/licenses/Apache-2.0"
-        }
-    ],
+    },
+    "license":{
+        "type": "Apache 2.0",
+        "url": "http://opensource.org/licenses/Apache-2.0"
+    },
 
     "devDependencies": {
       "karma": ">=0.8"
