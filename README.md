@@ -1,13 +1,14 @@
-# angularjs-script
+# angularjs-loader
+
+[![Build Status](https://travis-ci.org/hansl/angularjs-loader.png)](https://travis-ci.org/hansl/angularjs-loader)
 
 A script loader for AngularJS that perform AMD-like script injection without the need for special syntax.
-
 
 # Rationale
 
 Say you are like me and love having a Javascript file for every module. And you have a lot of scripts with specific tasks; directives, factories, utility functions. You name it.
 
-One solution that we used here is RequireJS, but I grew tired of it; it is becoming too heavy and doesn't integrate that well with AngularJS.
+One solution that we used here at Coders at Work was RequireJS, but I grew tired of it; it is becoming too heavy and doesn't integrate that well with AngularJS.
 
 # Example
 
@@ -15,32 +16,40 @@ So I decided to go ahead and build this little script. Here's how it works:
 
 > File `index.html`:
 >
->    <html>
+> ```html
+>      <html>
 >        <head>
->            <script type="text/javascript" src="path/to/angular.js"></script>
->            <script type="text/javascript" src="path/to/angularjs-script.js" app="test_app"></script>
->        </head>
->        
->        <body>
->            <div ng-controller="TestCtrl as test">
->                {{test.value}}<br/>
->            </div>
->        </body>
->    </html>
-> ----
+>             <script type="text/javascript" src="path/to/angular.js"></script>
+>             <script type="text/javascript" src="path/to/angularjs-loader.js" app="test_app"></script>
+>         </head>
+>         
+>         <body>
+>             <div ng-controller="TestCtrl as test">
+>                 {{test.value}}<br/>
+>             </div>
+>         </body>
+>     </html>
+> ```
+> -----
+>
 > File `test_app.js`:
 >
+> ```javascript
 >     angular.module('test_app', ['test_ctrl']);
-> ----
+> ```
+> -----
+>
 > File `test_ctrl.js`:
 >
+> ```javascript
 >     angular.module('test_ctrl', []).controller('TestCtrl', function() {
 >         this.value = 'Hello World!';
 >     });
+> ```
 
-What angularjs-script does is that it sees the dependency from test_app to test_ctrl and load test_ctrl automatically. It then bootstrap AngularJS when all the scripts are loaded.
+Angularjs-loader automatically sees that angular.module() has a dependency to 'test_ctrl', and as such loads the script automatically when it's ready. When all `angular.module()` calls are done, it automatically bootstrap angular.
 
-Before you needed all the calls to RequireJS with various configuration options, this plugin try to fix all that without the need for crazy shim.
+As long as you stick to AngularJS, there's no need for shims, paths or configurations.
 
 # API
 
@@ -100,25 +109,28 @@ The list of configuration options is as follow:
 * `pathTransform`. A list of functions that take a path and return a path or `null`. This is to allow transforming a module or script name to its file path. The transform chain will not be executed if the path is part of the `path` option above or is a full URI.
 * `checker`. A checker map for modules. See loading custom scripts above. This is to simplify the calls to `angular.loader()`.
 
-The process of getting a script path from a module name is as follow (pseudocode):
+The process of getting a script path from a module name is as follow:
 
-    path = config.path[name]
-    IF path IS NULL:
-        DO NOT LOAD THE SCRIPT
-        RETURN
-    IF path IS URI:
-        RETURN path.
+```javascript
+var name;  // Original name for the module.
+var path = name in config.path ? config.path[name] : name;  // Path to load.
+if (path === null) return;
+if (isUri(path)) return path;
 
-    FOR ALL xform IN config.transformPath:
-        old_path = path
-        path = xform(path, name)
-        IF path IS NULL:
-            path = old_path
-            BREAK
+for (var i = 0; i < config.transformPath.length; i++) {
+	old_path = path;
+	path = config.transformPath[i](path, name);
+	if (path === null) {
+	    path = old_path;
+	    break;
+	}
+}
 
-    IF path DOES NOT start with '/', prepend root
-    IF path DOES NOT end with '.js', append '.js'
-    RETURN path
+if (isUri(path)) return path;
+if (path[0] != '/') path = '/' + path;
+if (!/\.js$/.test(path)) path += '.js';
+return path;
+```
 
 ## <a name="Tests"></a> Tests (Karma and Jasmine)
 
@@ -129,8 +141,6 @@ The process of getting a script path from a module name is as follow (pseudocode
 # ToDo
 
 1. Minification pre-step. Having a script that takes all `angular.module()` calls and merge the scripts into a single file (or multiple).
-
-2. Better `angular.requires()` for scripts that aren't Angular modules.
 
 # Suggestions / Questions / Praises
 
