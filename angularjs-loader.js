@@ -12,7 +12,7 @@
  *******************************************************************************
  * Documentation: see http://github.com/hansl/angularjs-loader
  */
-(function() {
+(function(window) {
 
 /**
  * Used for exporting additional functions for unit testing. Should not be used
@@ -38,6 +38,8 @@ var config = {
     pathTransform: []
 };
 
+var initialized = false;
+
 var mainModulePathArg;
 var rootPathArg;
 var timeoutArg;
@@ -55,6 +57,12 @@ function extend(orig, extension, override) {
         }
     }
     return orig;
+}
+
+function bind(fn, o, args) {
+    return function() {
+        return fn.apply(o, args);
+    };
 }
 
 /**
@@ -225,7 +233,19 @@ function insertScript(path, attr) {
     return d.promise;
 }
 
+function maybeSwapAngularModuleFn() {
+    // We set angular.module prior, in case angular was loaded manually in
+    // the page.
+    if ('angular' in window && angular.module && !angularModuleOriginalFn) {
+        angularModuleOriginalFn = angular.module;
+        angular.module = newAngularModuleFn;
+    }
+}
+
 function loaderFn(path, options) {
+    if (!initialized) {
+        throw new Error('Need to initialize before loading.')
+    }
     if (options === UNDEFINED) {
         options = {};
     }
@@ -367,7 +387,7 @@ function loaderFn(path, options) {
                 unlockOnChecker(name, p);
             };
 
-            insertScript(p, obj).then(successFn.bind(0, name, p), function(err) {
+            insertScript(p, obj).then(bind(successFn, 0, [name, p]), function(err) {
                 returnDefer.reject(err);
             });
         }
@@ -379,28 +399,24 @@ function loaderFn(path, options) {
     if (!angularModuleOriginalFn) {
         // If a script (angular itself) set angular.module function, we
         // override it properly.
-        returnDefer.promise.then(function() {
-            if (angular.module && !angularModuleOriginalFn) {
-                angularModuleOriginalFn = angular.module;
-                angular.module = newAngularModuleFn;
-            }
-        });
+        returnDefer.promise.then(maybeSwapAngularModuleFn);
     }
     return returnDefer.promise;
 }
 
 function newAngularModuleFn() {
-    var name = arguments[0];
-    var requires = arguments[1];
+    var args = arguments;
+    var name = args[0];
+    var requires = args[1];
     if (!angularModuleOriginalFn) {
         throw new Error('Angular was not loaded.');
     }
 
-    var ret = angularModuleOriginalFn.apply(angular, arguments);
+    var ret = angularModuleOriginalFn.apply(angular, args);
 
     // If module() was called with only 1 argument, it was to get the module
     // and not create a new one.
-    if (arguments.length == 1) {
+    if (args.length == 1) {
         return ret;
     }
 
@@ -424,13 +440,13 @@ function newAngularModuleFn() {
 }
 
 extend(loaderFn, {
-    config: function(cfg) {
+    config: function angularLoaderConfig(cfg) {
         extend(config.checker, cfg.checker, false);
         extend(config.path, cfg.path, false);
         config.pathTransform = config.pathTransform.concat(cfg.pathTransform);
         return loaderFn;
     },
-    init: function(options) {
+    init: function angularLoaderInit(options) {
         mainModulePathArg = options.app;
         rootPathArg = options.root || '';
         timeoutArg = options.timeout || 30000;
@@ -447,7 +463,13 @@ extend(loaderFn, {
             throw new Error('The "app" argument is mandatory.')
         }
 
+        maybeSwapAngularModuleFn();
         lock(mainModulePathArg);
+
+        initialized = true;
+        if (options.boot) {
+            angular.loader(mainModulePathArg);
+        }
     },
     lock: function(name) {
         lock('ext:' + name);
@@ -486,15 +508,44 @@ var angularJsLoaderScriptTag = (function() {
     return NULL;
 })();
 
-if (!(angularJsLoaderScriptTag.getAttribute('noinit', false)
-      || window['__angularjs_loader_noinit'] === true)) {
+// Different initialization when under unittest.
+if (TESTING) {
+    console.log('Testing mode.');
+
+    var resetOnlyVisibleForTesting = function() {
+        lockCount = 0;
+        isBootstrapped = false;
+        locks = {};
+        mainModulePathArg = null;
+        rootPathArg = null;
+        timeoutArg = null;
+        bootstrapFnArg = null;
+        angularModuleOriginalFn = null;
+
+        maybeSwapAngularModuleFn();
+    }
+
+    extend(window, {
+        'angularjs_loader': angular.loader,
+        'angularjs_loader_lock': lock,
+        'angularjs_loader_unlock': unlock,
+        'angularjs_loader_locked': locked,
+        'angularjs_loader_extend': extend,  // I realize the irony.
+        'angularjs_loader_insert_script': insertScript,
+        'angularjs_loader_reset': resetOnlyVisibleForTesting
+    });
+}
+
+if (!(   angularJsLoaderScriptTag.getAttribute('noinit', false)
+           || window['__angularjs_loader_noinit'] === true)
+         && !TESTING) {
     angular.loader.init({
         app: angularJsLoaderScriptTag.getAttribute('app'),
         bootstrapFn: angularJsLoaderScriptTag.getAttribute('onbootstrap', ''),
         root: angularJsLoaderScriptTag.getAttribute('root', ''),
-        timeout: angularJsLoaderScriptTag.getAttribute('timeout', 30000)
+        timeout: angularJsLoaderScriptTag.getAttribute('timeout', 30000),
+        boot: true
     });
-    angular.loader(mainModulePathArg);
 }
 
-})();
+})(window);
