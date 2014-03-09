@@ -1,25 +1,25 @@
 {
-  "name": "angularjs-loader",
-  "main": "angularjs-loader.js",
-  "version": "0.6.2",
-  "homepage": "https://github.com/hansl/angularjs-loader",
-  "authors": [
-    "Hans Larsen <hans@hansl.ca>"
-  ],
-  "description": "A script to automatically load scripts based on the module dependencies, using angular.module() calls.",
-  "keywords": [
-    "angularjs",
-    "amd",
-    "script",
-    "loaders",
-    "loader"
-  ],
-  "license": "Apache v2",
-  "ignore": [
-    "**/.*",
-    "node_modules",
-    "bower_components",
-    "test",
-    "tests"
-  ]
+    "name": "angularjs-loader",
+    "main": "angularjs-loader.js",
+    "version": "0.6.3",
+    "homepage": "http://github.com/hansl/angularjs-loader",
+    "authors": [
+        "Hans Larsen <hans@hansl.ca>"
+    ],
+    "description": "A script to automatically load scripts based on the module dependencies, using angular.module() calls.",
+    "keywords": [
+        "angularjs",
+        "amd",
+        "script",
+        "loaders",
+        "loader"
+    ],
+    "license": "Apache v2",
+    "ignore": [
+        "**/.*",
+        "node_modules",
+        "bower_components",
+        "test",
+        "tests"
+    ]
 }
