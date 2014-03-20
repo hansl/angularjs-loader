@@ -47,6 +47,10 @@ var bootstrapFnArg;
 
 var angularModuleOriginalFn = window.angular && window.angular.module;
 
+function isString(value) {
+    return typeof value == 'string';
+}
+
 function extend(orig, extension, override) {
     if (override === UNDEFINED)
         override = true;
@@ -249,7 +253,7 @@ function loaderFn(path, options) {
     if (options === UNDEFINED) {
         options = {};
     }
-    if (typeof path == 'string') {
+    if (isString(path)) {
         path = [path];
     }
 
@@ -282,7 +286,7 @@ function loaderFn(path, options) {
             continue;
         }
 
-        if (typeof fn == 'string') {
+        if (isString(fn)) {
             fn = [fn];
         }
 
@@ -441,9 +445,11 @@ function newAngularModuleFn() {
 
 extend(loaderFn, {
     config: function angularLoaderConfig(cfg) {
-        extend(config.checker, cfg.checker, false);
-        extend(config.path, cfg.path, false);
-        config.pathTransform = config.pathTransform.concat(cfg.pathTransform);
+        if (cfg) {
+            extend(config.checker, cfg.checker, false);
+            extend(config.path, cfg.path, false);
+            config.pathTransform = config.pathTransform.concat(cfg.pathTransform);
+        }
         return loaderFn;
     },
     init: function angularLoaderInit(options) {
@@ -451,7 +457,7 @@ extend(loaderFn, {
         rootPathArg = options.root || '';
         timeoutArg = options.timeout || 30000;
         bootstrapFnArg = options.bootstrapFn;
-        if (typeof bootstrapFnArg == 'string') {
+        if (isString(bootstrapFnArg)) {
             var fnCode = bootstrapFnArg;
             bootstrapFnArg = function() {
                 eval(fnCode);
