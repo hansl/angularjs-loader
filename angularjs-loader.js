@@ -151,6 +151,11 @@ function pathFromModuleName(name) {
 
     if (map[name] === NULL) return NULL;
 
+    // If the name is a URI, just return it.
+    if (name.search(/^(https?:)?\/\/.+/) == 0) {
+        return name;
+    }
+
     var transformList = config.pathTransform;
     var path = name in map ? map[name] : transformPath(name, transformList);
 
