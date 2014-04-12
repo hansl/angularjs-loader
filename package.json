@@ -30,9 +30,6 @@
         "url": "http://opensource.org/licenses/Apache-2.0"
     },
 
-    "devDependencies": {
-      "karma": ">=0.8"
-    },
     "scripts": {
        "test": "./node_modules/.bin/karma start --single-run --browsers PhantomJS"
     }
