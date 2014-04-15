@@ -2,6 +2,20 @@
 'use strict';
 
 /**
+ * Used for exporting additional functions for unit testing. Should not be used
+ * otherwise.
+ * @define {boolean}
+ */
+var ANGULARJS_LOADER_TESTING = true;
+
+/**
+ * Better error messages.
+ * @define {boolean}
+ */
+var ANGULARJS_LOADER_DEBUG = true;
+
+
+/**
  * AngularJS Loader.
  * Automatically load scripts based on angular.module() calls (ala AMD).
  *******************************************************************************
@@ -13,13 +27,6 @@
  * Documentation: see http://github.com/hansl/angularjs-loader
  */
 (function(window) {
-
-/**
- * Used for exporting additional functions for unit testing. Should not be used
- * otherwise.
- * @const
- */
-var TESTING = window['__angularjs_loader_testing'];
 
 /**
  * These constants are just easier to shorten and reuse when using a
@@ -47,10 +54,22 @@ var bootstrapFnArg;
 
 var angularModuleOriginalFn = window.angular && window.angular.module;
 
-function isString(value) {
-    return typeof value == 'string';
+/*******************************************************************************
+ * Some polyfills.
+ */
+// Returns true if the value is of type type.
+function is(value, type) {
+    return typeof value == type;
 }
-
+// Returns true if the value is a string.
+function isString(value) {
+    return is(value, 'string');
+}
+// Returns true if the value is an object.
+function isObject(value) {
+    return is(value, 'object');
+}
+// Extend an object. See jQuery.extend() for "some" documentation.
 function extend(orig, extension, override) {
     if (override === UNDEFINED)
         override = true;
@@ -62,15 +81,33 @@ function extend(orig, extension, override) {
     }
     return orig;
 }
-
+// Bind a function to an object and a list of arguments.
 function bind(fn, o, args) {
     return function() {
         return fn.apply(o, args);
     };
 }
 
-/**
+
+function error(id, params, msg) {
+    if (ANGULARJS_LOADER_DEBUG) {
+        message = msg.replace(/\{\d+\}/g, function(_, i) {
+            return params[i];
+        });
+        throw new Error(message);
+    }
+    else {
+        // Maybe an error handler would be useful here.
+        console.error('err', id, params);
+    }
+}
+
+
+/*******************************************************************************
  * A really simple promise object.
+ * We do not want any external dependencies, so this object makes it easy for
+ * us to be able to do promises (which are great) without having another script
+ * loaded before us.
  */
 function deferred() {
     var success = [];
@@ -86,7 +123,7 @@ function deferred() {
         },
         resolve: function(val) {
             if (!pending) {
-                throw new Error('Deferred resolved twice.');
+                error(1, [], 'Deferred resolved twice.');
             }
             value = val;
             for (var i = 0; i < success.length; i++) {
@@ -124,9 +161,6 @@ function deferred() {
                     }
                 }
                 return deferred.promise;
-            },
-            error: function(fn) {
-                return deferred.then(NULL, fn);
             }
         }
     };
@@ -134,6 +168,9 @@ function deferred() {
     return deferred;
 }
 
+/**
+ * Transform a path according to a transformer list.
+ */
 function transformPath(path, transformList) {
     var original = path;
     for (var i = 0, fn; fn = transformList[i]; i++) {
@@ -175,7 +212,9 @@ function pathFromModuleName(name) {
     return path;
 }
 
-
+/*******************************************************************************
+ * Locking module.
+ */
 var lockCount = 0;
 var isBootstrapped = false;
 var locks = {};
@@ -186,7 +225,7 @@ function locked(name) {
 
 function lock(name) {
     if (name in locks) {
-        throw new Error('Path "' + name + '" is being loaded twice.');
+        error(2, [name], 'Path "{0}" is being loaded twice.');
     }
     locks[name] = false;
     lockCount++;
@@ -194,16 +233,16 @@ function lock(name) {
 
 function unlock(name) {
     if (!(name in locks)) {
-        throw new Error('Path "' + name + '" was not loaded.');
+        error(3, [name], 'Path "{0}" was not loaded.');
     }
     if (locks[name]) {
-        throw new Error('Path "' + name + '" was loaded twice.');
+        error(4, [name], 'Path "{0}" was loaded twice.');
     }
     locks[name] = true;
 
     if (--lockCount == 0) {
         if (isBootstrapped) {
-            throw new Error('App already bootstrapped.');
+            error(5, [], 'App already bootstrapped.');
         }
 
         isBootstrapped = true;
@@ -234,7 +273,12 @@ function insertScript(path, attr) {
     newScriptTag.addEventListener('error', function(ev) { d.reject(ev); });
     window.setTimeout(function() {
         if (d.pending()) {
-            d.reject(new Error('Script did not load in time.'));
+            if (ANGULARJS_LOADER_DEBUG) {
+                d.reject('Script did not load in time.');
+            }
+            else {
+                d.reject();
+            }
         }
     }, timeoutArg);
     document.head.appendChild(newScriptTag);
@@ -253,7 +297,7 @@ function maybeSwapAngularModuleFn() {
 
 function loaderFn(path, options) {
     if (!initialized) {
-        throw new Error('Need to initialize before loading.')
+        error(6, [], 'Need to initialize before loading.')
     }
     if (options === UNDEFINED) {
         options = {};
@@ -272,7 +316,7 @@ function loaderFn(path, options) {
     var checkerFn = options.checker || function() { return true; };
     var checkerMap = {};
 
-    if (typeof checkerFn == 'object') {
+    if (isObject(checkerFn)) {
         checkerMap = checkerFn;
     }
     else {
@@ -338,7 +382,7 @@ function loaderFn(path, options) {
                 }
                 else if (new Date() - start >= timeout) {
                     window.clearInterval(interval);
-                    throw new Error('Timed out loading "' + path + '".');
+                    error(7, [path], 'Timed out loading "{0}".');
                 }
             }, 10);
         }
@@ -347,7 +391,7 @@ function loaderFn(path, options) {
     function recursiveLoader(d) {
         if (path.length) {
             var name = path.shift();
-            var obj = (typeof name == 'object') ? name : {src: name};
+            var obj = isObject(name) ? name : {src: name};
             var p = pathFromModuleName(obj.src);
             if (!p || locked(p)) {
                 return recursiveLoader(d);
@@ -357,9 +401,7 @@ function loaderFn(path, options) {
             d = insertScript(p, obj).then(function() {
                 recursiveLoader(d);
                 unlockOnChecker(name, p);
-            }, function(reason) {
-                throw new Error(reason);
-            });
+            }, bind(error, NULL, 8, []));
         }
         else {
             if (!d) {
@@ -382,7 +424,7 @@ function loaderFn(path, options) {
         var counter = 0;
         while (path.length > 0) {
             var name = path.shift();
-            var obj = (typeof name == 'object') ? name : { name: name };
+            var obj = isObject(name) ? name : { name: name };
             var p = pathFromModuleName(obj.name);
             if (!p || locked(p)) {
                 continue;
@@ -418,7 +460,7 @@ function newAngularModuleFn() {
     var name = args[0];
     var requires = args[1];
     if (!angularModuleOriginalFn) {
-        throw new Error('Angular was not loaded.');
+        error(9, [], 'Angular was not loaded.');
     }
 
     var ret = angularModuleOriginalFn.apply(angular, args);
@@ -471,7 +513,7 @@ extend(loaderFn, {
         extend(config, options.config || {});
 
         if (!mainModulePathArg) {
-            throw new Error('The "app" argument is mandatory.')
+            error(10, [], 'The "app" argument is mandatory.')
         }
 
         maybeSwapAngularModuleFn();
@@ -493,7 +535,7 @@ extend(loaderFn, {
 extend(window.angular || (window.angular = {}), {
     loader: loaderFn,
     requires: function(name, checkerFn) {
-        if (typeof name == 'object') {
+        if (isObject(name)) {
             for (var n in name) {
                 angular.requires(n, name[n]);
             }
@@ -520,7 +562,7 @@ var angularJsLoaderScriptTag = (function() {
 })();
 
 // Different initialization when under unittest.
-if (TESTING) {
+if (ANGULARJS_LOADER_TESTING) {
     console.log('Testing mode.');
 
     var resetOnlyVisibleForTesting = function() {
@@ -547,14 +589,19 @@ if (TESTING) {
     });
 }
 
-if (!(   angularJsLoaderScriptTag.getAttribute('noinit', false)
-           || window['__angularjs_loader_noinit'] === true)
-         && !TESTING) {
+// Shortcut for getting the value from the tag.
+function getScriptTagAttr(name, defaultValue) {
+    return angularJsLoaderScriptTag.getAttribute(name, defaultValue);
+}
+
+if (   !getScriptTagAttr('noinit', false)
+    && !window['__angularjs_loader_noinit'] === true)
+{
     angular.loader.init({
-        app: angularJsLoaderScriptTag.getAttribute('app'),
-        bootstrapFn: angularJsLoaderScriptTag.getAttribute('onbootstrap', ''),
-        root: angularJsLoaderScriptTag.getAttribute('root', ''),
-        timeout: angularJsLoaderScriptTag.getAttribute('timeout', 30000),
+        app: getScriptTagAttr('app', NULL),
+        bootstrapFn: getScriptTagAttr('onbootstrap', ''),
+        root: getScriptTagAttr('root', ''),
+        timeout: getScriptTagAttr('timeout', 30000),
         boot: true
     });
 }
