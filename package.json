@@ -1,0 +1,34 @@
+{
+    "name": "angularjs-loader",
+    "version": "0.6.3",
+    "homepage": "http://github.com/hansl/angularjs-loader",
+    "authors": [
+        "Hans Larsen <hans@hansl.ca>"
+    ],
+    "description": "A script to automatically load scripts based on the module dependencies, using angular.module() calls.",
+    "categories": [
+        "Loader plugins"
+    ],
+    "keywords": [
+        "angularjs",
+        "amd",
+        "script",
+        "loaders",
+        "loader"
+    ],
+    "repository": {
+            "type": "git",
+            "url": "https://github.com/hansl/angularjs-loader.git"
+    },
+    "license":{
+        "type": "Apache 2.0",
+        "url": "http://opensource.org/licenses/Apache-2.0"
+    },
+
+    "devDependencies": {
+        "bower": "~1.2.2",
+        "karma": "0.11.12",
+        "karma-jasmine": "0.1.5",
+        "karma-phantomjs-launcher": "0.1.1"
+    }
+}
