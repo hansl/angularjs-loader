@@ -3,5 +3,5 @@ node_js:
   - "0.10"
   - "0.8"
 before_install:
-  - 'npm install karma'
-  - 'npm install karma-phantomjs-launcher'
+  - 'npm install -g karma karma-phantomjs-launcher'
+
