@@ -26,13 +26,12 @@ var ANGULARJS_LOADER_DEBUG = true;
  *******************************************************************************
  * Documentation: see http://github.com/hansl/angularjs-loader
  */
-(function(window) {
+(function(window, UNDEFINED) {
 
 /**
  * These constants are just easier to shorten and reuse when using a
  * minificator.
  */
-var UNDEFINED = void 0;
 var NULL = null;
 
 /**
@@ -40,6 +39,7 @@ var NULL = null;
  * @type Config
  */
 var config = {
+    error: NULL,
     path: {},
     checker: {},
     pathTransform: []
@@ -58,16 +58,16 @@ var angularModuleOriginalFn = window.angular && window.angular.module;
  * Some polyfills.
  */
 // Returns true if the value is of type type.
-function is(value, type) {
+function isOfType(value, type) {
     return typeof value == type;
 }
 // Returns true if the value is a string.
 function isString(value) {
-    return is(value, 'string');
+    return isOfType(value, 'string');
 }
 // Returns true if the value is an object.
 function isObject(value) {
-    return is(value, 'object');
+    return isOfType(value, 'object');
 }
 // Extend an object. See jQuery.extend() for "some" documentation.
 function extend(orig, extension, override) {
@@ -89,8 +89,16 @@ function bind(fn, o, args) {
 }
 
 
+/*******************************************************************************
+ * Error function. If a handler is specified it will be called with the ID and
+ * params. Otherwise this will either throw or log an error on the console.
+ * Optimized, the message will disappear.
+ */
 function error(id, params, msg) {
-    if (ANGULARJS_LOADER_DEBUG) {
+    if (config.error) {
+        config.error(id, params);
+    }
+    else if (ANGULARJS_LOADER_DEBUG) {
         message = msg.replace(/\{\d+\}/g, function(_, i) {
             return params[i];
         });
@@ -569,11 +577,11 @@ if (ANGULARJS_LOADER_TESTING) {
         lockCount = 0;
         isBootstrapped = false;
         locks = {};
-        mainModulePathArg = null;
-        rootPathArg = null;
-        timeoutArg = null;
-        bootstrapFnArg = null;
-        angularModuleOriginalFn = null;
+        mainModulePathArg = NULL;
+        rootPathArg = NULL;
+        timeoutArg = NULL;
+        bootstrapFnArg = NULL;
+        angularModuleOriginalFn = NULL;
 
         maybeSwapAngularModuleFn();
     }
