@@ -5,3 +5,5 @@ node_js:
 before_install:
   - 'npm install -g karma karma-phantomjs-launcher'
 
+
+scripts: karma start --single-run --browsers PhantomJS
