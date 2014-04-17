@@ -25,6 +25,21 @@ var ANGULARJS_LOADER_DEBUG = true;
  * in Chrome and Safari.
  *******************************************************************************
  * Documentation: see http://github.com/hansl/angularjs-loader
+ *
+ * Error IDs:
+ *   1 - Deferred resolved twice.
+ *   2 - Path "{0}" is being loaded twice.
+ *   3 - Path "{0}" was not loaded.
+ *   4 - Path "{0}" was loaded twice.
+ *   5 - App already bootstrapped.
+ *   6 - Need to initialize before loading.
+ *   7 - Timed out loading "{0}".
+ *   8 - NOT USED.
+ *   9 - Angular was not loaded.
+ *  10 - The "app" argument is mandatory.
+ *  11 - Script did not load in time.
+ *  12 - Error while loading the script: {0}.
+ *  NextId: 13
  */
 (function(window, UNDEFINED) {
 
@@ -82,9 +97,10 @@ function extend(orig, extension, override) {
     return orig;
 }
 // Bind a function to an object and a list of arguments.
-function bind(fn, o, args) {
+function bind(fn, o) {
+    var args = [].slice.call(arguments, 2)
     return function() {
-        return fn.apply(o, args);
+        return fn.apply(o, args.concat(arguments));
     };
 }
 
@@ -141,31 +157,16 @@ function deferred() {
             pending = false;
             return deferred;
         },
-        reject: function(val) {
-            reason = val;
-            for (var i = 0; i < error.length; i++) {
-                error[i](val);
-            }
-            pending = false;
-            succeeded = false;
-            return deferred;
-        },
         promise: {
-            then: function(fn, errFn) {
+            then: function(fn) {
                 if (!pending) {
                     if (succeeded) {
                         fn && fn(value);
-                    }
-                    else {
-                        errFn && errFn(reason);
                     }
                 }
                 else {
                     if (fn) {
                         success.push(fn);
-                    }
-                    if (errFn) {
-                        error.push(errFn);
                     }
                 }
                 return deferred.promise;
@@ -191,26 +192,52 @@ function transformPath(path, transformList) {
     return path;
 }
 
-function pathFromModuleName(name) {
+function pathOfCurrentFile() {
+    var getErrorSource = function(error) {
+        var loc;
+        var replacer = function(stack, matchedLoc) {
+            loc = matchedLoc;
+        };
+
+        if ("fileName" in error) {
+            return error.fileName;
+        } else if ("stacktrace" in error) { // Opera
+            error.stacktrace.replace(/Line \d+ of .+ script (.*)/gm, replacer);
+        } else if ("stack" in error) { // WebKit
+            error.stack.replace(/(?:at |@)(.*)/gm, replacer);
+            loc = loc.replace(/:\d+:\d+$/, "");
+        }
+        return loc;
+    };
+
+    try {
+        0();
+    }
+    catch (error) {
+        var source = getErrorSource(error);
+        return source;
+    }
+}
+
+function pathFromModuleName(name, parent) {
     var map = config.path;
 
     if (map[name] === NULL) return NULL;
 
+    var path;
+
     // If the name is a URI, just return it.
     if (name.search(/^(https?:)?\/\/.+/) == 0) {
-        return name;
+        path = name;
     }
-
-    var transformList = config.pathTransform;
-    var path = name in map ? map[name] : transformPath(name, transformList);
-
-    // If the path is a URI, just return it.
-    if (path.search(/^(https?:)?\/\/.+/) == 0) {
-        return path;
+    else if (name.search(/^\.\/+/) == 0) {
+        path = (parent || pathOfCurrentFile()).match(/^(.+\/).+?$/)[1] + name;
     }
-
-    // Prepend the root path if not absolute.
-    path = ((rootPathArg && path[0] != '/') ? rootPathArg + '/' : '') + path;
+    else {
+        path = name in map ? map[name] : transformPath(name, config.pathTransform);
+        // Prepend the root path if not absolute.
+        path = ((rootPathArg && path[0] != '/') ? rootPathArg + '/' : '') + path;
+    }
 
     // If the path doesn't end in .js, add that.
     if (path.search(/\.js$/) == -1) {
@@ -265,7 +292,7 @@ function unlock(name) {
     }
 }
 
-function insertScript(path, attr) {
+function insertScript(path, attr, caller) {
     var d = deferred();
 
     var newScriptTag = document.createElement('script');
@@ -277,16 +304,15 @@ function insertScript(path, attr) {
         newScriptTag.attributes[name] = value;
     }
 
-    newScriptTag.addEventListener('load', function(ev) { d.resolve(ev); });
-    newScriptTag.addEventListener('error', function(ev) { d.reject(ev); });
+    newScriptTag.addEventListener('load', function(ev) {
+        d.resolve(caller || ev.target.src);
+    });
+    newScriptTag.addEventListener('error', function(ev) {
+        error(12, [ev], 'Error while loading the script: {0}.');
+    });
     window.setTimeout(function() {
         if (d.pending()) {
-            if (ANGULARJS_LOADER_DEBUG) {
-                d.reject('Script did not load in time.');
-            }
-            else {
-                d.reject();
-            }
+            error(11, [], 'Script did not load in time.');
         }
     }, timeoutArg);
     document.head.appendChild(newScriptTag);
@@ -396,20 +422,20 @@ function loaderFn(path, options) {
         }
     }
 
-    function recursiveLoader(d) {
+    function recursiveLoader(d, parent) {
         if (path.length) {
             var name = path.shift();
             var obj = isObject(name) ? name : {src: name};
-            var p = pathFromModuleName(obj.src);
+            var p = pathFromModuleName(obj.src, parent);
             if (!p || locked(p)) {
-                return recursiveLoader(d);
+                return recursiveLoader(d, parent);
             }
 
             lock(p);
-            d = insertScript(p, obj).then(function() {
-                recursiveLoader(d);
+            d = insertScript(p, obj, parent).then(function(parent) {
+                recursiveLoader(d, parent);
                 unlockOnChecker(name, p);
-            }, bind(error, NULL, 8, []));
+            });
         }
         else {
             if (!d) {
@@ -419,8 +445,6 @@ function loaderFn(path, options) {
 
             d.then(function(val) {
                 returnDefer.resolve(val);
-            }, function(val) {
-                returnDefer.reject(val);
             });
         }
     }
@@ -446,9 +470,7 @@ function loaderFn(path, options) {
                 unlockOnChecker(name, p);
             };
 
-            insertScript(p, obj).then(bind(successFn, 0, [name, p]), function(err) {
-                returnDefer.reject(err);
-            });
+            insertScript(p, obj).then(bind(successFn, 0, name, p));
         }
         if (counter == 0) {
             returnDefer.resolve(true);
