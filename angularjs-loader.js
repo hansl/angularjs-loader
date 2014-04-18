@@ -308,7 +308,7 @@ function insertScript(path, attr, caller) {
         d.resolve(caller || ev.target.src);
     });
     newScriptTag.addEventListener('error', function(ev) {
-        error(12, [ev], 'Error while loading the script: {0}.');
+        error(12, [path], 'Error while loading the script: {0}.');
     });
     window.setTimeout(function() {
         if (d.pending()) {
