@@ -3,29 +3,35 @@
 /**
  * Script that takes files using angularjs-loader and concatenate them in order
  * of dependencies.
- * A lot of functionalities are reproduced from angularjs-loader. Mostly options
- * and path configuration.
  */
+
+// We load angularjs-loader for being able to re-use most of its code.
+window = {
+    __angularjs_loader_noinit: true
+};
+require('./angularjs-loader');
+
+var angularJsLoader = {};
+for (var name in window) {
+    angularJsLoader[name.replace(/^angularjs_loader_?/, '')] = window[name];
+}
+angular = window.angular;
+
 
 var allDependencies = {};
 var root = '';
 var stack = [];
+var config = extend(angularJsLoader.config, {
+    shouldRecurse: {},
+    modules: []
+});
 
-/**
- * The configuration we need for AngularJS-Loader.
- * The config _can_ change as we load dependencies. But if a dependency
- * conflicts, it will result in an error.
- */
-var config = {
-    path: {},
-    pathTransform: [],
-    checker: {}  // Technically not used.
-};
+var priority = 0;
 
-/**
- * Utility functions.
- */
-function noop() {};
+// /**
+//  * Utility functions.
+//  */
+// function noop() {};
 function chainNoop() { return this; }
 
 function extend(orig, extension, override) {
@@ -40,70 +46,61 @@ function extend(orig, extension, override) {
     return orig;
 }
 
-function transformPath(path, transformList) {
-    var original = path;
-    for (var i = 0, fn; fn = transformList[i]; i++) {
-        var old = path;
-        path = fn(path, original);
-        if (path === null) {
-            return old;
-        }
-    }
-    return path;
-}
 
-function pathFromModuleName(name) {
-    var map = config.path;
-    var path = name in map ? map[name] : transformPath(name, config.pathTransform);
 
-    if (path === null) {
-        return path;
-    }
-
-    // If the path is a URI, just return it.
-    if (path.search(/^(https?:)?\/\/.+/) == 0) {
-        return path;
-    }
-
-    // Prepend the root path if not absolute.
-    path = ((root && path[0] != '/') ? root + '/' : '') + path;
-
-    // If the path doesn't end in .js, add that.
-    if (path.search(/\.js$/) == -1) {
-        path += '.js';
-    }
-
-    return path;
-}
-
-function loadDependency(list) {
+function loadDependency(list, shouldRequire) {
     var stackLength = stack.length;
+    var top;
 
     if (stackLength > 0) {
-        var top = stack[stack.length - 1];
-        allDependencies[top].deps = allDependencies[top].deps.concat(list);
+        top = stack[stack.length - 1];
     }
 
     for (var i = 0; i < list.length; i++) {
         var name = list[i];
-        var path = pathFromModuleName(name);
-        stack.push(path);
 
-        if (!(path in allDependencies)) {
-            allDependencies[path] = {
+        var path = angularJsLoader.pathFromModuleName(name, top && allDependencies[top].path);
+        if (path === null) {
+            continue;
+        }
+        var isAbsolute = path.search(/^(https?:)?\/\/.+/) == 0;
+
+        if (isAbsolute) {
+            continue;
+        }
+
+        if (top && allDependencies[top].deps.indexOf(name) == -1) {
+            allDependencies[top].deps.push(name);
+        }
+        if (!(name in allDependencies)) {
+            allDependencies[name] = {
                 deps: [],
                 name: name,
                 isRoot: false,
-                path: path
+                path: isAbsolute ? path : root + '/' + path,
+                priority: priority++
+            }
+        }
+        else {
+            // Already loaded.
+            continue;
+        }
+
+        stack.push(name);
+
+        shouldRequire = shouldRequire || config.shouldRecurse[name];
+
+        if (path !== null && shouldRequire && !isAbsolute) {
+            try {
+                require(root + '/' + path);
+            }
+            catch (e) {
+                console.error(e);
             }
         }
 
-        if (path !== null) {
-            require(path);
-        }
-
         var x = stack.pop();
-        if (x != path) {
+        if (x != name) {
             throw 'Value popped should have been the same as value pushed.';
         }
     }
@@ -113,54 +110,122 @@ function loadDependency(list) {
     }
 };
 
+function solveDependencies() {
+    var ordered = [];
+    // Make a copy.
+    var deps = extend({}, allDependencies);
+    var circular = false;
 
-// Dummy Window object just so the script doesn't cause any problems.
-window = this;
+    while (true) {
+        while (circular == false) {
+            circular = true;
 
-angular = {
-    module: function(name, opt_deps /*, ...*/) {
-        angular.loader(opt_deps);
-        // A dummy module.
-        return {
-            config: chainNoop,
-            run: chainNoop,
-            controller: chainNoop,
-            directive: chainNoop
+            for (var name in deps) {
+                var d = deps[name];
+
+                if (d.deps.length == 0) {
+                    // We have a winner.
+                    ordered.push(name);
+                    delete deps[name];
+                    circular = false;
+
+                    // Delete it from dependencies. It's been revolved now.
+                    for (var dname in deps) {
+                        if (deps[dname].deps.indexOf(name) != -1) {
+                            deps[dname].deps.splice(deps[dname].deps.indexOf(name), 1);
+                        }
+                    }
+                }
+            }
         }
-    },
-    loader: function(path, options) {
-        if (typeof path === 'string') {
-            path = [path];
+
+        // Check for circular dependencies.
+        var lowestPriority = Infinity;
+        var lowestName = null;
+
+        // We have a circular dependency.
+        for (var name in deps) {
+            if (deps[name].priority < lowestPriority) {
+                lowestPriority = deps[name].priority;
+                lowestName = name;
+            }
         }
 
-        loadDependency(path);
+        if (lowestName === null) {
+            break;  // Done!
+        }
 
-        // Fake promises.
-        return {
-            then: function(fn) {
+        // We have a winner.
+        ordered.push(lowestName);
+        delete deps[lowestName];
+        circular = false;
+
+        // Delete it from dependencies. It's been revolved now.
+        for (var dname in deps) {
+            if (deps[dname].deps.indexOf(lowestName) != -1) {
+                deps[dname].deps.splice(deps[dname].deps.indexOf(lowestName), 1);
+            }
+        }
+    }
+
+    return ordered;
+}
+
+
+angular.module = function(name, opt_deps /*, ...*/) {
+    if (opt_deps) {
+        loadDependency(opt_deps, true);
+    }
+
+    // A dummy module.
+    return {
+        config: chainNoop,
+        run: chainNoop,
+        controller: chainNoop,
+        directive: chainNoop,
+        factory: chainNoop,
+        filter: chainNoop
+    }
+};
+angular.loader = function(path, options) {
+    if (typeof path === 'string') {
+        path = [path];
+    }
+
+    loadDependency(path, false);
+
+    // Fake promises.
+    return {
+        then: function(fn) {
+            try {
                 fn();
+            }
+            catch (ex) {
+                // Do Nothing with it.
             }
         }
     }
 }
-
-angular.loader.config = function(cfg, newConcatConfig) {
+angular.loader.config = function(cfg, additionalConfig) {
     extend(config.path, cfg.path, false);
     extend(config.checker, cfg.checker, false);
     config.pathTransform = config.pathTransform.concat(cfg.pathTransform);
 
-    if (newConcatConfig) {
-        extend(config.checker, newConcatConfig.checker);
-        extend(config.path, newConcatConfig.path);
-        config.pathTransform = config.pathTransform.concat(newConcatConfig.pathTransform);
+    if (additionalConfig) {
+        extend(config.path, additionalConfig.path, true);
+        extend(config.checker, additionalConfig.checker, true);
+        config.shouldRecurse = additionalConfig.shouldRecurse;
+        config.pathTransform = config.pathTransform.concat(additionalConfig.pathTransform || []);
+        config.modules = config.modules.concat(additionalConfig.modules || []);
     }
 
     return {
         then: function(fn) {
-            console.log(fn);
+            console.error(fn);
         }
     }
 }
+
 
 function main() {
     var args = process.argv.splice(2);
@@ -171,11 +236,37 @@ function main() {
         var file = pathArray.pop();
         root = pathArray.join('/');
 
-        loadDependency([root + '/' + file]);
+        loadDependency([root + '/' + file], true);
     }
 
-    console.log(allDependencies);
+    // Now go through all of them, and build an order of inclusion.
+    // This will reveal circular dependencies. We resolve them by having
+    // a priority associated with the dependency. The lower the priority,
+    // the better the order of inclusion.
+
+    var orderedDependencies = solveDependencies();
+    var fs = require('fs');
+
+    // Output a useless loader that should be optimized out.
+    console.log(
+          'window.angular = window.angular || {};'
+        + 'window.angular.loader = function() { return {then: function(fn) { window.setTimeout(fn, 0)}}};'
+        + 'window.angular.loader.config = function() {};'
+    );
+
+    for (var i = 0; i < orderedDependencies.length; i++) {
+        var src = allDependencies[orderedDependencies[i]].path;
+        var data = fs.readFileSync(src, 'utf-8');
+        console.log(data);
+    }
+
+    // Output the bootstrapping code, since we don't rely on the loader.
+    console.log(
+        'window.setTimeout(function() { angular.bootstrap(document, ["'
+            + config.modules.join('","') + '"]); }, 0);'
+    );
 }
 
-try { main() } catch(e) {}
-console.log(allDependencies);
+main();
+
+// console.log(allDependencies);
