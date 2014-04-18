@@ -115,7 +115,7 @@ function error(id, params, msg) {
         config.error(id, params);
     }
     else if (ANGULARJS_LOADER_DEBUG) {
-        message = msg.replace(/\{\d+\}/g, function(_, i) {
+        var message = msg.replace(/\{\d+\}/g, function(_, i) {
             return params[i];
         });
         throw new Error(message);
@@ -551,7 +551,7 @@ extend(loaderFn, {
 
         initialized = true;
         if (options.boot) {
-            angular.loader(mainModulePathArg);
+            window.angular.loader(mainModulePathArg);
         }
     },
     lock: function(name) {
@@ -580,21 +580,8 @@ extend(window.angular || (window.angular = {}), {
     }
 });
 
-// Get our script tag.
-var allScriptTags = document.getElementsByTagName('script');
-var angularJsLoaderScriptTag = (function() {
-    for (var i = 0; i < allScriptTags.length; i++) {
-        if (/angularjs-loader\.js([?#].+)?$/.test(allScriptTags[i].src)) {
-            return allScriptTags[i];
-        }
-    }
-    return NULL;
-})();
-
 // Different initialization when under unittest.
 if (ANGULARJS_LOADER_TESTING) {
-    console.log('Testing mode.');
-
     var resetOnlyVisibleForTesting = function() {
         lockCount = 0;
         isBootstrapped = false;
@@ -609,31 +596,44 @@ if (ANGULARJS_LOADER_TESTING) {
     }
 
     extend(window, {
-        'angularjs_loader': angular.loader,
+        'angularjs_loader': window.angular.loader,
         'angularjs_loader_lock': lock,
         'angularjs_loader_unlock': unlock,
         'angularjs_loader_locked': locked,
         'angularjs_loader_extend': extend,  // I realize the irony.
-        'angularjs_loader_insert_script': insertScript,
-        'angularjs_loader_reset': resetOnlyVisibleForTesting
+        'angularjs_loader_insertScript': insertScript,
+        'angularjs_loader_reset': resetOnlyVisibleForTesting,
+        'angularjs_loader_pathFromModuleName': pathFromModuleName,
+        'angularjs_loader_config': config
     });
 }
 
-// Shortcut for getting the value from the tag.
-function getScriptTagAttr(name, defaultValue) {
-    return angularJsLoaderScriptTag.getAttribute(name, defaultValue);
-}
+if (window && window['__angularjs_loader_noinit'] !== true) {
+    // Get our script tag.
+    var allScriptTags = document.getElementsByTagName('script');
+    var angularJsLoaderScriptTag = (function() {
+        for (var i = 0; i < allScriptTags.length; i++) {
+            if (/angularjs-loader\.js([?#].+)?$/.test(allScriptTags[i].src)) {
+                return allScriptTags[i];
+            }
+        }
+        return NULL;
+    })();
 
-if (   !getScriptTagAttr('noinit', false)
-    && !window['__angularjs_loader_noinit'] === true)
-{
-    angular.loader.init({
-        app: getScriptTagAttr('app', NULL),
-        bootstrapFn: getScriptTagAttr('onbootstrap', ''),
-        root: getScriptTagAttr('root', ''),
-        timeout: getScriptTagAttr('timeout', 30000),
-        boot: true
-    });
+    // Shortcut for getting the value from the tag.
+    var getScriptTagAttr = function(name, defaultValue) {
+        return angularJsLoaderScriptTag.getAttribute(name, defaultValue);
+    }
+
+    if (!getScriptTagAttr('noinit', false)) {
+        angular.loader.init({
+            app: getScriptTagAttr('app', NULL),
+            bootstrapFn: getScriptTagAttr('onbootstrap', ''),
+            root: getScriptTagAttr('root', ''),
+            timeout: getScriptTagAttr('timeout', 30000),
+            boot: true
+        });
+    }
 }
 
 })(window);
