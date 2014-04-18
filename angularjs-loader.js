@@ -305,7 +305,7 @@ function insertScript(path, attr, caller) {
     }
 
     newScriptTag.addEventListener('load', function(ev) {
-        d.resolve(caller || ev.target.src);
+        d.resolve(caller);
     });
     newScriptTag.addEventListener('error', function(ev) {
         error(12, [path], 'Error while loading the script: {0}.');
@@ -422,7 +422,9 @@ function loaderFn(path, options) {
         }
     }
 
-    function recursiveLoader(d, parent) {
+    var parent = pathOfCurrentFile();
+
+    function recursiveLoader(d) {
         if (path.length) {
             var name = path.shift();
             var obj = isObject(name) ? name : {src: name};
@@ -433,7 +435,7 @@ function loaderFn(path, options) {
 
             lock(p);
             d = insertScript(p, obj, parent).then(function(parent) {
-                recursiveLoader(d, parent);
+                recursiveLoader(d);
                 unlockOnChecker(name, p);
             });
         }
@@ -509,7 +511,7 @@ function newAngularModuleFn() {
             }
 
             lock(requires[i]);
-            insertScript(path);
+            insertScript(path, pathFromModuleName(name));
         }
     }
 
