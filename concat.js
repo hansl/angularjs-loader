@@ -19,6 +19,7 @@ angular = window.angular;
 
 
 var allDependencies = {};
+var absoluteDependencies = [];
 var root = '';
 var stack = [];
 var config = extend(angularJsLoader.config, {
@@ -66,6 +67,9 @@ function loadDependency(list, shouldRequire) {
         var isAbsolute = path.search(/^(https?:)?\/\/.+/) == 0;
 
         if (isAbsolute) {
+            if (absoluteDependencies.indexOf(path) == -1) {
+                absoluteDependencies.push(path);
+            }
             continue;
         }
 
@@ -249,10 +253,29 @@ function main() {
 
     // Output a useless loader that should be optimized out.
     console.log(
-          'window.angular = window.angular || {};'
-        + 'window.angular.loader = function() { return {then: function(fn) { window.setTimeout(fn, 0)}}};'
-        + 'window.angular.loader.config = function() {};'
+          "/** AngularJS Loader Script */"
+        + "window.angular = window.angular || {};\n"
+        + "window.angular.loader = function() { return {then: function(fn) { window.setTimeout(fn, 0)}}};\n"
+        + "window.angular.loader.config = function() {};\n"
+        + "function __angularjs_insertScript(path) {\n"
+        + "    var newScriptTag = document.createElement('script');\n"
+        + "    newScriptTag.type = 'text/javascript';\n"
+        + "    newScriptTag.src = path;\n"
+        + "\n"
+        + "    newScriptTag.addEventListener('load', function(ev) {\n"
+        // + "        d.resolve(caller);\n"
+        + "    });\n"
+        + "    newScriptTag.addEventListener('error', function(ev) {\n"
+        + "        error(12, [path], 'Error while loading the script: {0}.');\n"
+        + "    });\n"
+        + "    document.head.appendChild(newScriptTag);\n"
+        + "};\n"
+        + "\n"
     );
+
+    for (var i = 0; i < absoluteDependencies.length; i++) {
+        console.log('__angularjs_insertScript("' + absoluteDependencies[i] + '");\n');
+    }
 
     for (var i = 0; i < orderedDependencies.length; i++) {
         var src = allDependencies[orderedDependencies[i]].path;
