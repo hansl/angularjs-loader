@@ -199,13 +199,13 @@ function pathOfCurrentFile() {
             loc = matchedLoc;
         };
 
-        if ("fileName" in error) {
+        if ('fileName' in error) {
             return error.fileName;
-        } else if ("stacktrace" in error) { // Opera
+        } else if ('stacktrace' in error) { // Opera
             error.stacktrace.replace(/Line \d+ of .+ script (.*)/gm, replacer);
-        } else if ("stack" in error) { // WebKit
+        } else if ('stack' in error) { // WebKit
             error.stack.replace(/(?:at |@)(.*)/gm, replacer);
-            loc = loc.replace(/:\d+:\d+$/, "");
+            loc = loc.replace(/:\d+:\d+$/, '');
         }
         return loc;
     };
@@ -296,7 +296,7 @@ function insertScript(path, attr, caller) {
     var d = deferred();
 
     var newScriptTag = document.createElement('script');
-    newScriptTag.type = "text/javascript";
+    newScriptTag.type = 'text/javascript';
     newScriptTag.src = path;
 
     for (var name in attr) {
