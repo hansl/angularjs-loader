@@ -280,7 +280,7 @@ function main() {
     for (var i = 0; i < orderedDependencies.length; i++) {
         var src = allDependencies[orderedDependencies[i]].path;
         var data = fs.readFileSync(src, 'utf-8');
-        console.log('/* @angularjs_loader("' + src + '") */');
+        console.log('/* __angularjs_loader("' + src + '") */');
         console.log(data);
     }
 
