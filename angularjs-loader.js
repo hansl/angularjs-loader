@@ -33,7 +33,7 @@ var ANGULARJS_LOADER_DEBUG = true;
  *   4 - Path "{0}" was loaded twice.
  *   5 - App already bootstrapped.
  *   6 - Need to initialize before loading.
- *   7 - Timed out loading "{0}".
+ *   7 - Timed out checking module named "{0}" at "{1}".
  *   8 - NOT USED.
  *   9 - Angular was not loaded.
  *  10 - The "app" argument is mandatory.
@@ -115,7 +115,7 @@ function error(id, params, msg) {
         config.error(id, params);
     }
     else if (ANGULARJS_LOADER_DEBUG) {
-        var message = msg.replace(/\{\d+\}/g, function(_, i) {
+        var message = msg.replace(/\{(\d+)\}/g, function(_, i) {
             return params[i];
         });
         throw new Error(message);
@@ -396,14 +396,14 @@ function loaderFn(path, options) {
         }
     }
 
-    function unlockOnChecker(name, lock) {
+    function unlockOnChecker(name, path) {
         if (!(name in checkerMap)) {
-            unlock(lock);
+            unlock(path);
             return;
         }
         else {
             if (checkerMap[name](name)) {
-                unlock(lock);
+                unlock(path);
                 return;
             }
 
@@ -412,11 +412,12 @@ function loaderFn(path, options) {
                 if (checkerMap[name](name)) {
                     // For every interval created we will clear it by design.
                     window.clearInterval(interval);
-                    unlock(lock);
+                    unlock(path);
                 }
                 else if (new Date() - start >= timeout) {
                     window.clearInterval(interval);
-                    error(7, [path], 'Timed out loading "{0}".');
+                    error(7, [name, path],
+                          'Timed out checking module named "{0}" at "{1}".');
                 }
             }, 10);
         }
@@ -528,6 +529,9 @@ extend(loaderFn, {
             extend(config.checker, cfg.checker, false);
             extend(config.path, cfg.path, false);
             config.pathTransform = config.pathTransform.concat(cfg.pathTransform);
+            if ('error' in cfg) {
+                config.error = cfg.error;
+            }
         }
         return loaderFn;
     },
@@ -606,7 +610,8 @@ if (ANGULARJS_LOADER_TESTING) {
         'angularjs_loader_insertScript': insertScript,
         'angularjs_loader_reset': resetOnlyVisibleForTesting,
         'angularjs_loader_pathFromModuleName': pathFromModuleName,
-        'angularjs_loader_config': config
+        'angularjs_loader_config': config,
+        'angularjs_loader_error': error
     });
 }
 
