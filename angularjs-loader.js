@@ -373,14 +373,16 @@ function loaderFn(path, options) {
             fn = [fn];
         }
 
-        checkerMap[script] = function() {
-            for (var i = 0; i < fn.length; i++) {
-                if (window[fn[i]] === UNDEFINED) {
-                    return false;
+        checkerMap[script] = (function(checks) {
+            return function() {
+                for (var i = 0; i < checks.length; i++) {
+                    if (window[checks[i]] === UNDEFINED) {
+                        return false;
+                    }
                 }
+                return true;
             }
-            return true;
-        };
+        })(fn);
     }
 
     var timeout = options.timeout || timeoutArg;
