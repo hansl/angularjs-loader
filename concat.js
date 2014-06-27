@@ -188,7 +188,8 @@ angular.module = function(name, opt_deps /*, ...*/) {
         controller: chainNoop,
         directive: chainNoop,
         factory: chainNoop,
-        filter: chainNoop
+        filter: chainNoop,
+        value: chainNoop
     }
 };
 angular.loader = function(path, options) {
