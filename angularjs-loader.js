@@ -98,9 +98,12 @@ function extend(orig, extension, override) {
 }
 // Bind a function to an object and a list of arguments.
 function bind(fn, o) {
-    var args = [].slice.call(arguments, 2)
+    var args = new Array(arguments.length);
+    for(var i = 0; i < args.length; ++i) {
+        args[i] = arguments[i];
+    }
     return function() {
-        return fn.apply(o, args.concat(arguments));
+        return fn.apply(o, args.slice(2).concat(arguments));
     };
 }
 
@@ -491,18 +494,17 @@ function loaderFn(path, options) {
 }
 
 function newAngularModuleFn() {
-    var args = arguments;
-    var name = args[0];
-    var requires = args[1];
+    var name = arguments[0];
+    var requires = arguments[1];
     if (!angularModuleOriginalFn) {
         error(9, [], 'Angular was not loaded.');
     }
 
-    var ret = angularModuleOriginalFn.apply(angular, args);
+    var ret = angularModuleOriginalFn.apply(angular, arguments);
 
     // If module() was called with only 1 argument, it was to get the module
     // and not create a new one.
-    if (args.length == 1) {
+    if (arguments.length == 1) {
         return ret;
     }
 
