@@ -253,11 +253,19 @@ function main() {
     var fs = require('fs');
 
     // Output a useless loader that should be optimized out.
+    // If you need scripts to manipulate this part, use the START and END
+    // tokens.
     console.log(
-          "/** AngularJS Loader Script */"
-        + "window.angular = window.angular || {};\n"
-        + "window.angular.loader = function() { return {then: function(fn) { window.setTimeout(fn, 0)}}};\n"
-        + "window.angular.loader.config = function() {};\n"
+          "/** AngularJS Loader Script */\n"
+        + "/*@START@@@@@@@@@@@@@@@@@@@@*/\n"
+        + "/** @extern */"
+        + "window['angular'] = window['angular'] || {};\n"
+        + "/** @extern */"
+        + "window['angular'].loader = function() {"
+        +   "return {then: function(fn) { window.setTimeout(fn, 0)}}"
+        + "};\n"
+        + "/** @extern */"
+        + "window['angular'].loader.config = function() {};\n"
         + "function __angularjs_insertScript(path) {\n"
         + "    var newScriptTag = document.createElement('script');\n"
         + "    newScriptTag.type = 'text/javascript';\n"
@@ -271,6 +279,7 @@ function main() {
         + "    });\n"
         + "    document.head.appendChild(newScriptTag);\n"
         + "};\n"
+        + "/*@END@@@@@@@@@@@@@@@@@@@@@@*/\n"
         + "\n"
     );
 
